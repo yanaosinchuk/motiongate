@@ -1,13 +1,3 @@
-"""Controlled benchmark built from one real photograph.
-
-All people are removed from Ultralytics' ``bus.jpg`` by instance segmentation and
-Telea inpainting; one segmented pedestrian is then composited back at known
-positions.  Presence, motion and the target box are therefore known exactly,
-while nuisance factors (sensor noise, illumination steps, camera jitter) can be
-switched on independently.  This is a controlled systems test, not a substitute
-for annotated surveillance footage.
-"""
-
 from __future__ import annotations
 
 import math
