@@ -1,0 +1,29 @@
+\section{Discussion}\label{sec:discussion}
+
+\paragraph{When does gating pay off?} The invocation ratio is a property of the scene as much as of the system: by Proposition~\ref{prop:guarantees} it lies between $1/K$ when nothing moves and $1/M$ under continuous motion. On the controlled benchmark the \FDS-gated system sends \PolRatioFDS{} of the frames to the detector and reproduces the every-frame output almost exactly (recall \PolRecallFDS{} vs.\ \PolRecallEvery, mean IoU \PolIouFDS{} vs.\ \PolIouEvery). Fixed-rate subsampling with the same budget reaches the same recall at IoU $\ge0.5$ (\FixedRecallAtFDS), because a box that is one frame old still overlaps a walking person sufficiently. Its boxes, however, lag behind moving persons: the mean IoU drops to \FixedIouAtFDS{} at the same budget and to \PolIouFixedThree{} for every third frame. The gated policy concentrates staleness where it is harmless, in periods without motion. Recall at a lenient IoU threshold alone would hide this difference, yet applications that crop persons, count line crossings or estimate positions depend on localisation. At smaller budgets the minimum interval $M$ turns the gate into a clear improvement: with $M=4$, \FDS{} keeps a recall of \PolRecallFDSMFour{} at $r=\PolRatioFDSMFour$, where fixed-rate subsampling with the same budget reaches \FixedRecallAtFDSMFour{} (\cref{fig:tradeoff}a), because the gate spends the budget on the frames that change.
+
+\paragraph{Robustness is a cost issue.} Every false trigger costs a full detector call. Under camera jitter \FD{} triggers on almost every frame, so the gated system becomes as expensive as running the detector on every frame (\cref{tab:scenario_results}). \FDS{} reduces the invocation ratio of that scenario by an order of magnitude while keeping recall on the walker filmed by the same jittering camera. Over the benchmark, \FDS{} needs \PolCallsFDS{} detector calls instead of \PolCallsFD{} at identical recall and localisation, and in the end-to-end run the measured time drops from \EtoeMeasuredFD\,s to \EtoeMeasuredFDS\,s. MOG2 is not a better gate for this purpose: it is the most expensive, it absorbs illumination steps only gradually, it misses part of the slow motion, and it kept a box for \PolExitMOG{} frames after the person had left.
+
+\paragraph{Busy scenes.} Gating cannot save anything when something moves in almost every frame: on \code{vtest.avi} the gate is active on \VtActiveFDS{} of the frames. The minimum interval then acts as a cost cap, and the policy degrades gracefully into fixed-rate subsampling at rate $1/M$ instead of into running the detector on every frame. For such scenes the next step is to make each detector call cheaper, for example by running the detector on the motion regions only, or to extrapolate boxes between calls with a tracker.
+
+\paragraph{Deployment guidance.} The analysis translates into a short checklist:
+\begin{enumerate}
+\item Measure $C_y$ and $C_m$ on the target hardware. Gating pays off whenever $r<1-C_m/C_y$ (\cref{eq:cost}), which holds by a wide margin for CPU inference; on a GPU $C_y$ shrinks and the margin narrows.
+\item Derive $K$ from the oldest box the application accepts: $K=\lfloor s_{\max}f\rfloor+1$, e.g.\ $K=16$ for 0.5\,s at 30\,FPS.
+\item Derive $M$ from the compute budget: under continuous motion the detector runs on every $M$-th frame.
+\item Use \FDS{} whenever the camera can vibrate (poles, vehicles, slamming doors) or the lighting can change (clouds, switched lights); plain \FD{} suffices only for rigid indoor mounts with stable lighting.
+\item Check $A_{\min}$ against the smallest person that must be detected with the area model~\eqref{eq:area}; lowering $A_{\min}$ recovers small or slow persons at the price of more noise triggers.
+\item Keep the per-frame record (reason, age); downstream logic can then treat retained boxes differently from fresh ones.
+\end{enumerate}
+
+\paragraph{Limitations and threats to validity.}
+\begin{itemize}
+\item The controlled benchmark uses one background and one rigid, alpha-composited person without articulation, shadows or motion blur; noise is Gaussian and independent; jitter is a pure translation. Its results explain mechanisms rather than predict field performance. A walking person with moving limbs changes more pixels than the rigid cut-out, so the size and speed limits are conservative.
+\item \FDS{} was designed with the failure modes of this benchmark in view, which risks overfitting. The real video was held out, but it has no annotations and contains no notable jitter or illumination events.
+\item The reference in the real video is the detector itself, so the numbers measure agreement, not accuracy; detector flicker between consecutive frames lowers the agreement of every subsampling policy.
+\item Timings come from one CPU thread of a shared machine; ratios such as $r$ and $C_m/C_y$ transfer better than absolute times.
+\item \FDS{} still triggers for inter-frame translations of about 0.5--1\,px (\cref{fig:envelope}c), where half-resolution phase correlation is not accurate enough; full-resolution or iterative refinement~\cite{lucas1981iterative,evangelidis2008ecc} would address this at a higher cost. Rotation, zoom and parallax are not modelled.
+\item The percolation estimate of the noise onset neglects the spatial correlation introduced by smoothing.
+\end{itemize}
+
+\paragraph{Future work.} A tracker such as SORT~\cite{bewley2016sort} could extrapolate boxes between detector calls instead of retaining them. The noise level could be estimated online to adapt $\tau$ through~\eqref{eq:bias}. The policies should also be evaluated on annotated real footage and measured on embedded hardware.

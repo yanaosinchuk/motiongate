@@ -1,0 +1,47 @@
+\section{Experimental setup}\label{sec:experiments}
+
+\subsection{Controlled benchmark}\label{sec:benchmark}
+Real surveillance footage rarely comes with the information needed to test a gate: when exactly something moved, by how much, and whether the camera moved. We therefore build a controlled benchmark from one real photograph, following the construction of the original prototype. All persons in Ultralytics' \code{bus.jpg} are segmented with YOLOv8n-seg, the dilated union of their masks is filled by Telea inpainting~\cite{telea2004inpainting}, and a $640\times640$ crop serves as background. The fully visible, most upright pedestrian is cut out with its mask and composited back at scripted positions, either at full scale (height \HeightC\,px) or as a distant walker (\HeightB\,px). An alpha-blended cut-out on an inpainted background is not photo-realistic, but presence, motion and the target box are known exactly. Every frame receives Gaussian sensor noise with $\sigma=1.5$ per channel. Camera jitter is rendered by extracting the frame at a sub-pixel offset from a larger canvas with Lanczos interpolation, so that, as with a physical camera, the border shows real scene content and the translation does not blur the image.
+
+\Cref{tab:scenarios} lists the \NScen{} scenarios of \NFramesScen{} frames each (3\,s at 30\,FPS, \NFramesCtrl{} frames in total). The ground truth is the tight box of the visible part of the cut-out; a transition counts as motion if a visible person changed position.
+
+\begin{table}[t]
+\centering\small
+\caption{Scenarios of the controlled benchmark (\NFramesScen{} frames each).}
+\label{tab:scenarios}
+\begin{tabular}{@{}lp{0.66\linewidth}@{}}
+\toprule
+Scenario & Content (and what it tests)\\
+\midrule
+Walk & person walks across the scene at 6\,px/frame (sustained motion)\\
+Slow walk & 1.5\,px/frame (weak motion signal)\\
+Stop and go & walks for 30 frames, stands for 30, walks again (idle period)\\
+Enter, stop, exit & empty for 10 frames, enters from the left, stands for 40 frames, leaves to the right, empty for the last 5 frames (entry and exit latency)\\
+Stationary person & person present but motionless (the gate must stay silent)\\
+Distant walker & person of height \HeightB\,px walking at 2\,px/frame (area filter)\\
+Empty scene & background and noise only\\
+Illumination steps & empty scene; global steps of $+32$ and $-50$ grey levels at frames 30 and 60\\
+Camera jitter & empty scene; independent translations of up to $\pm3$\,px per axis and frame\\
+Jitter + walk & walking person filmed by a jittering camera\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Metrics}\label{sec:metrics}
+\emph{Gate level.} For every transition $(t-1,t)$ the gate decision is compared with the motion label: recall $=P(g_t=1\mid\text{motion})$, false-positive rate (FPR) $=P(g_t=1\mid\text{no motion})$ and precision. Statistics are pooled over \NSeeds{} independent noise and jitter realisations (\NTransitions{} transitions per gate) and reported with Wilson 95\% intervals~\cite{wilson1927probable}.
+
+\emph{System level.} A frame with a visible person counts as a hit if a reported box overlaps the ground truth with IoU $\ge0.5$ (one-to-one matching); frame recall is the fraction of hits among the \PosFrames{} frames with a visible person. On the \NegFrames{} frames without a person, a frame on which any box is reported is a \emph{stale frame}. We also report the mean IoU of hits, the maximum age, and entry and exit latencies in the enter--stop--exit scenario, i.e.\ the number of frames until a policy reports the entering person, or stops reporting a box after the person has left, relative to running the detector on every frame.
+
+\emph{Cost.} We report the invocation ratio $r$, the estimated run time (the sum of the measured per-frame gate costs and the measured detector costs of the invoked frames) and the speed-up relative to the detector on every frame.
+
+\subsection{Policies and protocol}\label{sec:protocol}
+We compare (i)~the detector on every frame; (ii)~fixed-rate subsampling, i.e.\ every $N$-th frame with $N\in\{1,\dots,45\}$, which spends a fixed budget without looking at the content; and (iii)~gated policies with \FD, \FDS{} or MOG2, $K\in\{5,10,15,30,45,90\}$ and $M=1$ unless stated otherwise. The default is $K=\RefreshK$, i.e.\ 0.5\,s at 30\,FPS. Because a policy only selects which detector outputs are reported, YOLOv8m (confidence 0.25, input size 640) is run once on every frame of the first realisation and every policy is replayed offline with the exact rule~\eqref{eq:rule}. A unit test verifies that the replay reproduces the online scheduler decision by decision, and an end-to-end run of the online system with \FD{} and \FDS{} validates both the decisions and the cost model.
+
+\subsection{Operating-envelope sweeps}\label{sec:sweeps}
+To test the predictions of \cref{sec:envelope}, one nuisance factor is varied at a time with the gates in isolation: noise with $\sigma\in[0,48]$, illumination steps $\Delta\in[0,80]$ and inter-frame camera translations in $[0,8]$\,px on the empty scene, and a person of height \HeightA, \HeightB{} or \HeightC\,px walking at 1--10\,px/frame. Every point uses 3 realisations of 30 transitions.
+
+\subsection{Real video}\label{sec:video_setup}
+As a held-out check we use OpenCV's sample \code{vtest.avi}~\cite{opencv2024vtest}: \VtFrames{} frames of $768\times576$ pixels at \VtFps\,FPS from a static camera overlooking a pedestrian area, with \VtPersons{} detected persons per frame on average. The video has no annotations. The reference is therefore YOLOv8m run on every frame, and we measure how well a policy reproduces it: recall, precision and F1 of reported boxes against reference boxes (IoU $\ge0.5$). This quantifies agreement with the detector, not detection accuracy. We use $K=10$ (1\,s), $M\in\{1,\dots,6\}$ and fixed rates $N\in\{1,\dots,10\}$. The design of \FDS{} was frozen on the controlled benchmark before it was run on this video.
+
+\subsection{Environment}\label{sec:environment}
+All timings were measured on a single CPU thread (PyTorch 2.6, Ultralytics 8.3.235, OpenCV 4.13). Absolute times depend on the hardware, whereas ratios such as $r$ and $C_m/C_y$ transfer better. One script regenerates every result, table and figure (\cref{app:repro}).

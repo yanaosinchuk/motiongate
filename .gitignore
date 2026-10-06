@@ -1,0 +1,18 @@
+# model weights and data are downloaded separately (see README)
+weights/
+data/
+# caches and logs
+results/cache/
+results_run.log
+__pycache__/
+*.egg-info/
+.pytest_cache/
+# LaTeX build products
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.synctex.gz

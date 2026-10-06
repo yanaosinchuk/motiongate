@@ -1,0 +1,3 @@
+gate,measured_s,estimated_s,calls,frames,decision_mismatches
+difference,130.182588165,139.27206918499928,194,360,0
+stabilized,79.20544688699802,83.72508209200038,116,360,0

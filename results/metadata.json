@@ -1,0 +1,33 @@
+{
+  "generated_utc": "2026-09-23T23:20:51+00:00",
+  "runtime_min": 0.5,
+  "python": "3.12.3",
+  "platform": "Linux-6.18.44-fc-v40-x86_64-with-glibc2.39",
+  "cpu_threads": 1,
+  "opencv": "4.13.0",
+  "numpy": "2.4.4",
+  "torch": "2.6.0+cu124",
+  "ultralytics": "8.3.235",
+  "weights": "yolov8m.pt",
+  "fake_detector": false,
+  "source_person_box": [
+    223,
+    408,
+    344,
+    862
+  ],
+  "parameters": {
+    "frames_per_scenario": 90,
+    "seeds": 10,
+    "seed": 20260922,
+    "noise_sigma": 1.5,
+    "threshold": 20.0,
+    "min_area": 900.0,
+    "dilation": 3,
+    "blur_kernel": 5,
+    "refresh_K": 15,
+    "confidence": 0.25,
+    "iou": 0.5,
+    "image_size": 640
+  }
+}

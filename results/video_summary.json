@@ -1,0 +1,13 @@
+{
+  "frames": 795,
+  "fps": 10.0,
+  "mean_persons": 6.036477987421383,
+  "frames_without_person": 0,
+  "det_ms": 488.1333319761014,
+  "active_difference": 0.9974811083123426,
+  "active_stabilized": 0.9937027707808564,
+  "active_mog2": 0.9987405541561712,
+  "gate_ms_difference": 1.1105489534005073,
+  "gate_ms_stabilized": 6.798319774559248,
+  "gate_ms_mog2": 10.56331156675063
+}

@@ -1,0 +1,93 @@
+\section{Method}\label{sec:method}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[>={Stealth[length=2mm]}, every node/.style={font=\small},
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=10mm, inner sep=4pt}]
+\node[box] (frame) at (0,0) {frame\\$I_t$};
+\node[box, fill=Orange!15] (gate) at (2.7,0) {motion gate $\mathcal{G}$\\{\scriptsize 1--10\,ms}};
+\node[box, fill=MidnightBlue!10] (sched) at (5.8,0) {scheduler\\{\scriptsize parameters $K$, $M$}};
+\node[box, fill=Red!12] (det) at (9.6,0.95) {detector $\mathcal{D}$\\{\scriptsize YOLOv8m, $\approx$0.5\,s}};
+\node[box, fill=gray!12] (keep) at (9.6,-0.95) {reuse $B_{t-1}$\\{\scriptsize age $a_t=a_{t-1}+1$}};
+\node[box] (out) at (12.9,0) {boxes\\$B_t$};
+\draw[->] (frame) -- (gate);
+\draw[->] (gate) -- node[above]{$g_t$} (sched);
+\draw[->] (sched.east) -- ++(0.35,0) |- node[pos=0.75, above]{\scriptsize $z_t=1$} (det.west);
+\draw[->] (sched.east) -- ++(0.35,0) |- node[pos=0.75, below]{\scriptsize $z_t=0$} (keep.west);
+\draw[->] (det.east) -- (out);
+\draw[->] (keep.east) -- (out);
+\draw[->, gray] (frame.north) -- ++(0,1.3) -| (det.north);
+\end{tikzpicture}
+\caption{System overview. A cheap gate inspects every frame. The scheduler calls the detector on the first frame, when motion is pending and at least $M$ frames have passed since the last call, or when $K$ frames have passed without a call; otherwise the previous boxes are reported again and their age grows by one.}
+\label{fig:system}
+\end{figure}
+
+\subsection{Problem setting}\label{sec:setting}
+A static camera delivers frames $I_0,\dots,I_{T-1}$. A detector $\mathcal{D}$ maps a frame to a set of person boxes at cost $C_y$ per call. A gate $\mathcal{G}$ maps the pair $(I_{t-1},I_t)$ to a decision $g_t\in\{0,1\}$ at cost $C_m$ per frame ($g_0=0$). A scheduler decides $z_t\in\{0,1\}$, and the system reports $B_t=\mathcal{D}(I_t)$ if $z_t=1$ and $B_t=B_{t-1}$ otherwise (\cref{fig:system}). We call $r=\frac1T\sum_t z_t$ the \emph{invocation ratio} and $a_t=t-\ell_t$ the \emph{age} of the reported boxes, where $\ell_t=\max\{s\le t: z_s=1\}$ is the most recent detector call.
+
+\subsection{Scheduler}\label{sec:scheduler}
+Let $p_t$ indicate that motion has been reported since the last call, $p_t=g_t\lor(p_{t-1}\land\lnot z_{t-1})$ with $p_{-1}=0$. The scheduler calls the detector if
+\begin{equation}\label{eq:rule}
+z_t=\mathbf{1}\bigl[\,t=0\;\lor\;(p_t\land t-\ell_{t-1}\ge M)\;\lor\;t-\ell_{t-1}\ge K\,\bigr],\qquad 1\le M\le K .
+\end{equation}
+The refresh interval $K$ bounds staleness; the minimum interval $M$ caps the call rate. A trigger that arrives too early is delayed, never dropped. For $M=1$ the rule reduces to the original design $z_t=\mathbf{1}[t=0\lor g_t\lor t-\ell_{t-1}\ge K]$.
+
+\begin{proposition}\label{prop:guarantees}
+For every gate sequence $(g_t)$ and $1\le M\le K$:
+(i)~$a_t\le K-1$ for all $t$;
+(ii)~if $g_s=1$, the detector is called at some $t\in\{s,\dots,s+M-1\}$;
+(iii)~consecutive calls are at least $M$ and at most $K$ frames apart, hence $\lceil T/K\rceil\le\sum_t z_t\le\lceil T/M\rceil$, and both bounds are attained (gate never and always active).
+\end{proposition}
+\begin{proof}
+(i)~The refresh clause fires as soon as $t-\ell_{t-1}=K$, so gaps between calls never exceed $K$ frames and ages within a gap are at most $K-1$. (iii)~Apart from $t=0$, every clause of \eqref{eq:rule} requires $t-\ell_{t-1}\ge M$ because $M\le K$; the upper gap bound is (i). (ii)~Let $\ell<s$ be the last call before $s$. The pending flag is set at $s$ and stays set until the next call, which happens no later than the first $t\ge s$ with $t-\ell\ge M$, i.e.\ at $\max(s,\ell+M)\le s+M-1$.
+\end{proof}
+
+\noindent In practice $K$ follows from a staleness budget $s_{\max}$ at frame rate $f$ as $K=\lfloor s_{\max}f\rfloor+1$. Under continuous motion the scheduler runs the detector on every $M$-th frame, exactly like fixed-rate subsampling, whereas static periods cost only one call per $K$ frames.
+
+\paragraph{Cost model.} With per-frame costs $C_m$ and $C_y$, the mean cost per frame is $C_m+rC_y$, so the speed-up over running the detector on every frame and the break-even condition are
+\begin{equation}\label{eq:cost}
+S=\frac{C_y}{C_m+r\,C_y},\qquad S>1\iff r<1-\frac{C_m}{C_y}.
+\end{equation}
+For our gates $C_m/C_y$ lies between \CostRatioFD{} (\FD) and \CostRatioMOG{} (MOG2), so the gate's own cost is negligible and the savings are governed by $r$, i.e.\ by the activity of the scene and the gate's false-trigger rate. Every false trigger costs a full detector call; every missed trigger costs accuracy, which Proposition~\ref{prop:guarantees}(i) limits to $K-1$ frames of staleness.
+
+\subsection{The frame-differencing gate (\FD)}\label{sec:fd}
+The original gate follows the classic OpenCV recipe~\cite{bradski2000opencv}:
+\begin{equation}\label{eq:fd}
+D_t=G*\sum_{c}w_c\,\bigl|I_{t,c}-I_{t-1,c}\bigr|,\qquad \text{mask}_t=\mathbf{1}[D_t>\tau],
+\end{equation}
+with the BT.601 grey weights $w=(0.114,0.587,0.299)$ in BGR order and a $5\times5$ Gaussian kernel $G$. The mask is dilated $d$ times with a $3\times3$ element, and the gate is active if an external contour encloses at least $A_{\min}$ pixels. We keep the original parameters $\tau=20$, $A_{\min}=900$\,px and $d=3$ throughout.
+
+\subsection{Failure envelope of the frame-differencing gate}\label{sec:envelope}
+
+\paragraph{Sensor noise.} Assume independent $\mathcal{N}(0,\sigma^2)$ noise per channel, pixel and frame, and a static scene. A channel difference is $\mathcal{N}(0,2\sigma^2)$, and its absolute value has mean $2\sigma/\sqrt{\pi}$ and variance $2\sigma^2(1-2/\pi)$. The grey conversion keeps the mean ($\sum_c w_c=1$) and scales the variance by $\sum_c w_c^2=\GrayEnergy$; smoothing keeps the mean and scales the variance by $\sum G^2=\KernelEnergy$. Hence, approximately,
+\begin{equation}\label{eq:bias}
+D_t\sim\mathcal{N}\bigl(\BiasCoef\,\sigma,\;(\ClassicSdCoef\,\sigma)^2\bigr).
+\end{equation}
+Smoothing suppresses the fluctuations but not the mean, which the absolute value has created: a \emph{rectification bias}. The per-pixel exceedance probability is $p_{\FD}(\sigma)=1-\Phi\bigl((\tau-\BiasCoef\,\sigma)/(\ClassicSdCoef\,\sigma)\bigr)$.
+
+When does the gate fire? The dilations turn every exceeding pixel into a $(2d+1)\times(2d+1)$ square. Randomly placed aligned squares of side $L$ form large connected clusters once their density reaches $\eta_c/L^2$ with $\eta_c\approx1.0988$~\cite{mertens2012continuum}. For $d=3$ this is $p_c=\PercProb$: below $p_c$ clusters rarely reach $A_{\min}$, above it they grow without bound and the gate fires in every frame. The onset is therefore predicted where $p(\sigma^*)=p_c$, which gives $\sigma^*_{\FD}=\PredSigmaPcFD$ (\PredSigmaLoFD--\PredSigmaHiFD{} for $p\in[0.01,0.1]$). Smoothing correlates neighbouring exceedances, so this is an estimate that the experiments must confirm.
+
+\paragraph{Illumination.} A uniform intensity step $\Delta$ changes every unsaturated pixel by $|\Delta|$, so \FD{} fires if and only if $|\Delta|>\tau$, whatever the scene content.
+
+\paragraph{Object size and speed.} A textured silhouette of height $h$ that moves by $v$ pixels changes at least a leading and a trailing strip of about $v\times h$ pixels. After dilation a strip covers $(v+2d)(h+2d)$ pixels, so the gate fires if
+\begin{equation}\label{eq:area}
+v\ \ge\ v^*=\frac{A_{\min}}{h+2d}-2d .
+\end{equation}
+For the person heights of our benchmark, $h=\HeightA$, $\HeightB$ and $\HeightC$\,px, the bound is $v^*=\PredSpeedA$, $\PredSpeedB$ and $\PredSpeedC$\,px/frame; a negative value means that every displacement triggers the gate. Interior texture and merging strips only add changed pixels, so the model is conservative.
+
+\paragraph{Camera jitter.} A translation $\delta$ changes a pixel by about $|\nabla I\cdot\delta|$. Requiring that $A_{\min}$ pixels exceed $\tau$ gives the order-of-magnitude estimate $\delta^*\approx\tau/g_q$, where $g_q$ is the gradient magnitude exceeded by $A_{\min}$ pixels of the smoothed background. For our background $g_q=\GradQuantile$ grey levels per pixel and $\delta^*\approx\PredJitter$\,px: scenes with sharp edges trigger \FD{} for sub-pixel camera motion.
+
+\subsection{The stabilised gate (\FDS)}\label{sec:fds}
+Each step of \FDS{} addresses one failure mode of \FD:
+\begin{enumerate}
+\item \emph{Signed smoothing (noise).} $G_t=G*\mathrm{gray}(I_t)$ is computed in floating point and the residual $R_t=G_t-\hat G_{t-1}$ keeps its sign, so noise has zero mean and standard deviation $\sigma\sqrt{2\sum_c w_c^2\sum G^2}=\RobustSdCoef\,\sigma$. With $p_{\FDS}(\sigma)=2\bigl(1-\Phi(\tau/(\RobustSdCoef\,\sigma))\bigr)$ the percolation criterion predicts $\sigma^*_{\FDS}=\PredSigmaPcFDS$ (band \PredSigmaLoFDS--\PredSigmaHiFDS), more than twice the tolerance of \FD.
+\item \emph{Registration (jitter).} The translation $s_t$ between $G_{t-1}$ and $G_t$ is estimated by phase correlation~\cite{kuglin1975phase} on half-resolution images with a Hann window. Estimates with a weak peak (response $<0.05$), an implausible magnitude ($>20$\,px) or a magnitude below the accuracy of the estimator ($<0.1$\,px) are discarded. $\hat G_{t-1}$ is $G_{t-1}$ warped by $s_t$ with cubic interpolation; bilinear warping would blur only the reference frame and leave residuals along every edge.
+\item \emph{Model selection.} Phase correlation assumes that the background dominates the image, and a large, high-contrast moving object can capture the correlation peak. The shift is therefore accepted only if it lowers the median absolute residual on the $10\%$ strongest-gradient pixels by at least $10\%$ compared with $s=0$. Registration can only be verified on image structure (the aperture problem), and on these pixels the background dominates, so a moving object cannot pull the decision.
+\item \emph{Illumination.} The median $\beta_t$ of $R_t$ is subtracted. While $|\beta_t|>2$, pixels within 6 grey levels of 0 or 255 in either frame are ignored, because clipped values cannot follow a global offset. Otherwise they are kept, so that a saturated (e.g.\ white) moving object remains visible.
+\item \emph{Error propagation.} A registration error $e$ leaves a residual of about $e\cdot\nabla G$. After a shift has been compensated, a pixel counts as changed only if $|R_t-\beta_t|>\tau+\varepsilon\,|\nabla G_t|$ with $\varepsilon=0.5$\,px, the order of the sub-pixel accuracy of half-resolution phase correlation. Without compensation the plain threshold $\tau$ applies, so a static camera keeps full sensitivity. A border of $\lceil|s_t|\rceil+1$ pixels is ignored.
+\item Dilation, contours and $A_{\min}$ as in \FD.
+\end{enumerate}
+\FDS{} costs \GateMsFDS\,ms per $640\times640$ frame against \GateMsFD\,ms for \FD. It models global translation only; rotation, zoom, parallax and a foreground that covers most of the image violate its assumptions.
+
+\subsection{Baseline gate: MOG2}\label{sec:mog}
+As a stronger baseline we use OpenCV's adaptive Gaussian mixture model~\cite{zivkovic2004improved} (history 500, variance threshold 16, shadows ignored), followed by a $3\times3$ morphological opening and the same contour rule. It adapts to gradual changes but needs several frames to absorb sudden ones, and it costs \GateMsMOG\,ms per frame.

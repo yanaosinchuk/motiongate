@@ -1,0 +1,19 @@
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Policy & $r$ & Recall & Precision & F1 & Speed-up \\
+\midrule
+Every frame & 1.000 & 1.000 & 1.000 & 1.000 & 1.00 \\
+Fixed rate, $N=2$ & 0.501 & 0.952 & 0.954 & 0.953 & 2.00 \\
+Fixed rate, $N=3$ & 0.333 & 0.855 & 0.854 & 0.854 & 3.00 \\
+Fixed rate, $N=4$ & 0.250 & 0.731 & 0.734 & 0.732 & 4.00 \\
+Gated, FD (original), $M=1$ & 0.997 & 1.000 & 1.000 & 1.000 & 1.00 \\
+Gated, FD (original), $M=2$ & 0.501 & 0.952 & 0.954 & 0.953 & 1.99 \\
+Gated, FD (original), $M=3$ & 0.333 & 0.855 & 0.854 & 0.854 & 2.98 \\
+Gated, FD-S (stabilised), $M=1$ & 0.994 & 1.000 & 1.000 & 1.000 & 0.99 \\
+Gated, FD-S (stabilised), $M=2$ & 0.498 & 0.952 & 0.954 & 0.953 & 1.95 \\
+Gated, FD-S (stabilised), $M=3$ & 0.333 & 0.853 & 0.853 & 0.853 & 2.88 \\
+Gated, MOG2, $M=1$ & 0.999 & 1.000 & 1.000 & 1.000 & 0.98 \\
+Gated, MOG2, $M=2$ & 0.501 & 0.952 & 0.954 & 0.953 & 1.91 \\
+Gated, MOG2, $M=3$ & 0.333 & 0.855 & 0.854 & 0.854 & 2.82 \\
+\bottomrule
+\end{tabular}

@@ -1,0 +1,12 @@
+\begin{tabular}{@{}lccccccccc@{}}
+\toprule
+Policy & $r$ & Recall & Stale & Mean & Max & Entry & Exit & Time & Speed- \\
+ & & & frames & IoU & age & lat. & lat. & (s) & up \\
+\midrule
+Every frame & 1.000 & 0.998 & 0 & 0.981 & 0 & 0 & 0 & 628.3 & 1.00 \\
+Fixed rate, $N=2$ & 0.500 & 0.997 & 0 & 0.938 & 1 & 0 & 0 & 313.3 & 2.01 \\
+Gated, FD (original) & 0.629 & 0.997 & 0 & 0.981 & 14 & 1 & 0 & 395.0 & 1.59 \\
+Gated, FD-S (stabilised) & 0.542 & 0.997 & 0 & 0.981 & 14 & 1 & 0 & 342.6 & 1.83 \\
+Gated, MOG2 & 0.557 & 0.997 & 5 & 0.973 & 14 & 1 & 6 & 356.8 & 1.76 \\
+\bottomrule
+\end{tabular}

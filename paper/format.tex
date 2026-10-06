@@ -1,0 +1,61 @@
+% ---------------------------------------------------------------------------
+% format.tex -- every layout decision of the paper lives in this file.
+% To adopt another template (e.g. the one of the Computer_Geometry project),
+% replace this file and, if necessary, the \documentclass line of main.tex.
+% main.tex and sections/*.tex contain content only.
+% ---------------------------------------------------------------------------
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{mathpazo}                 % Palatino text and mathematics
+\linespread{1.05}
+\emergencystretch=2em               % avoid overfull lines with long inline maths
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,linkcolor=MidnightBlue,citecolor=MidnightBlue,urlcolor=MidnightBlue]{hyperref}
+\usepackage{xurl}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+\graphicspath{{figures/}{../figures/}}
+\captionsetup{font=small,labelfont=bf,margin=0.5em}
+\setlist{itemsep=2pt,topsep=4pt}
+\bibliographystyle{abbrvnat}
+\lstset{basicstyle=\ttfamily\small,columns=fullflexible,keepspaces=true,frame=tb,framerule=0.4pt,
+        language=Python,keywordstyle=\color{MidnightBlue},commentstyle=\color{gray},showstringspaces=false,
+        aboveskip=6pt,belowskip=6pt}
+
+\theoremstyle{plain}
+\newtheorem{proposition}{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+% Title block ---------------------------------------------------------------
+\makeatletter
+\gdef\@affiliation{}\gdef\@keywords{}
+\newcommand{\affiliation}[1]{\gdef\@affiliation{#1}}
+\newcommand{\keywords}[1]{\gdef\@keywords{#1}}
+\renewcommand{\maketitle}{%
+  \thispagestyle{plain}%
+  \begin{center}
+    {\LARGE\bfseries\@title\par}\vspace{1.0em}
+    {\large\@author\par}\vspace{0.35em}
+    {\normalsize\itshape\@affiliation\par}\vspace{0.35em}
+    {\small\@date\par}
+  \end{center}\vspace{0.4em}}
+\newcommand{\printkeywords}{\par\smallskip\noindent\textbf{Keywords:} \@keywords\par}
+\makeatother
+
+% Notation ------------------------------------------------------------------
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\FD}{FD}
+\newcommand{\FDS}{FD-S}

@@ -1,0 +1,10 @@
+# Exact versions used to produce the results in the paper (Python 3.12, CPU).
+# The package itself only needs numpy + opencv; see pyproject.toml for the minimal ranges.
+numpy==2.4.4
+opencv-python-headless==4.13.0.92
+torch==2.6.0
+torchvision==0.21.0
+ultralytics==8.3.235
+pandas==3.0.2
+matplotlib==3.10.8
+pytest==9.1.1
