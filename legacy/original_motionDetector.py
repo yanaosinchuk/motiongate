@@ -1,18 +1,6 @@
-"""
-Program: Motion Detection
-By pressing ESC the programm will be terminated
-
-Source: https://itsourcecode.com/free-projects/python-projects/motion-detection-opencv-python-with-source-code
-"""
-
-import cv2 as cv    # pip install opencv-python
-import numpy as np  # pip install numpy
-from matplotlib import pyplot as plt  # pip install matplotlib
-
-# upgrade package manager pip
-# python.exe -m pip install --upgrade pip
-
-import cv2 as cv
+import cv2 as cv   
+import numpy as np  
+from matplotlib import pyplot as plt 
 
 def motionDetection():
     """
