@@ -121,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
                 "gate_active",
                 "persons",
                 "gate_ms",
+                "tracker_ms",
                 "detector_ms",
             ]
         )
@@ -143,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
                         int(result.gate.active),
                         len(result.detections),
                         f"{result.gate_ms:.3f}",
+                        f"{result.tracker_ms:.3f}",
                         f"{result.detector_ms:.3f}",
                     ]
                 )
