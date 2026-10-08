@@ -1,22 +1,10 @@
 name: Tracking benchmark
 
 on:
-  push:
-    branches:
-      - benchmark/tracking-evaluation
-    paths:
-      - ".github/workflows/tracking-benchmark.yml"
-      - "benchmark/tracking_study.py"
-      - "benchmark/synthetic.py"
-      - "benchmark/evaluation.py"
-      - "src/motiongate/tracker.py"
-      - "src/motiongate/scheduler.py"
-      - "src/motiongate/config.py"
-      - "src/motiongate/datatypes.py"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   controlled-tracking-study:
@@ -26,8 +14,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          ref: benchmark/tracking-evaluation
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -64,15 +50,3 @@ jobs:
           cat results/tracking_summary.json
           echo
           cat results/tracking_deltas.csv
-
-      - name: Commit generated benchmark results
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add results/tracking_controlled.csv                   results/tracking_scenarios.csv                   results/tracking_deltas.csv                   results/tracking_summary.json                   figures/fig_tracking_extension.png                   figures/fig_tracking_extension.pdf
-          if git diff --cached --quiet; then
-            echo "No benchmark changes to commit."
-          else
-            git commit -m "Add controlled optical-flow benchmark results"
-            git push
-          fi
