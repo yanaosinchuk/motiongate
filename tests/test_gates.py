@@ -118,3 +118,17 @@ def test_stabilized_mask_rejects_shape_mismatch():
             config,
             StabilizationConfig(),
         )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"history": 0},
+        {"var_threshold": 0},
+        {"learning_rate": -2},
+        {"learning_rate": 1.1},
+    ],
+)
+def test_mog2_rejects_invalid_parameters(kwargs):
+    with pytest.raises(ValueError):
+        MOG2Gate(**kwargs)
