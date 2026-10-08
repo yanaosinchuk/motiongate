@@ -7,7 +7,7 @@ from .scheduler import MotionGatedDetector, SchedulerStats
 from .tracker import BoxTracker, SparseOpticalFlowTracker, make_tracker
 from .datatypes import Detection, FrameResult, GateResult, TrackingResult
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     "Detection", "FrameResult", "GateResult", "TrackingResult",
