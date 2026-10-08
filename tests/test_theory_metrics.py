@@ -40,7 +40,8 @@ def test_predicted_noise_onset_orders_the_two_pipelines():
     lo_fds = theory.critical_sigma(20, 1e-3, "robust")
     assert 11 < lo_fd < 14 and lo_fds > 1.5 * lo_fd
     rng = np.random.default_rng(4)
-    frame = lambda s: np.clip(128 + rng.normal(0, s, (200, 200, 3)), 0, 255).astype(np.uint8)
+    def frame(s):
+        return np.clip(128 + rng.normal(0, s, (200, 200, 3)), 0, 255).astype(np.uint8)
     cfg = GateConfig(dilation_iterations=0)
     below = classic_difference_mask(frame(0.7 * lo_fd), frame(0.7 * lo_fd), cfg).mean() / 255
     above = classic_difference_mask(frame(1.3 * lo_fd), frame(1.3 * lo_fd), cfg).mean() / 255
