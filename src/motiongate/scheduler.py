@@ -34,6 +34,7 @@ class SchedulerStats:
     invocations: int = 0
     reasons: Counter = field(default_factory=Counter)
     gate_ms: float = 0.0
+    tracker_ms: float = 0.0
     detector_ms: float = 0.0
 
     @property
@@ -42,7 +43,7 @@ class SchedulerStats:
 
     @property
     def total_ms(self) -> float:
-        return self.gate_ms + self.detector_ms
+        return self.gate_ms + self.tracker_ms + self.detector_ms
 
 
 class MotionGatedDetector:
@@ -111,8 +112,11 @@ class MotionGatedDetector:
         gate_ms = 1000.0 * (perf_counter() - start)
 
         tracking_result = None
+        tracker_ms = 0.0
         if not first and self.tracker is not None and self._last_detections:
+            start = perf_counter()
             tracking_result = self.tracker.update(frame)
+            tracker_ms += 1000.0 * (perf_counter() - start)
             self._pending_tracking = self._pending_tracking or not tracking_result.reliable
 
         gap = self._index - self._last_inference
@@ -140,7 +144,9 @@ class MotionGatedDetector:
             self._pending_motion = False
             self._pending_tracking = False
             if self.tracker is not None:
+                start = perf_counter()
                 self.tracker.initialize(frame, detections)
+                tracker_ms += 1000.0 * (perf_counter() - start)
         elif tracking_result is not None and tracking_result.reliable:
             self._last_detections = tracking_result.detections
             tracked = True
@@ -149,6 +155,7 @@ class MotionGatedDetector:
         self.stats.invocations += int(fresh)
         self.stats.reasons[reason] += 1
         self.stats.gate_ms += gate_ms
+        self.stats.tracker_ms += tracker_ms
         self.stats.detector_ms += detector_ms
 
         return FrameResult(
@@ -160,6 +167,7 @@ class MotionGatedDetector:
             gate=gate_result,
             gate_ms=gate_ms,
             detector_ms=detector_ms,
+            tracker_ms=tracker_ms,
             tracked=tracked,
             tracking_quality=tracking_result.quality if tracking_result is not None else None,
         )
