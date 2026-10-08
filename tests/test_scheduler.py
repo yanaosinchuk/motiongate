@@ -14,7 +14,7 @@ class ScriptedGate:
         return GateResult(active=bool(self.decisions[self.t]), ready=self.t > 0)
 
     def reset(self):
-        pass
+        self.t = -1
 
 
 class CountingDetector:
@@ -108,11 +108,15 @@ def test_reset_starts_a_new_stream_and_clears_stats():
 
 
 def test_reset_stats_preserves_stream_state():
-    results, _, system = run([0, 0], k=10)
-    assert results[-1].detection_age == 1
+    det = CountingDetector()
+    system = MotionGatedDetector(det, ScriptedGate([0, 0, 0]), SchedulerConfig(10))
+    stream = frames(3)
+    system.process(next(stream))
+    second = system.process(next(stream))
+    assert second.detection_age == 1
 
     system.reset_stats()
-    next_result = system.process(next(frames(1)))
+    next_result = system.process(next(stream))
 
     assert next_result.index == 2
     assert next_result.reason == "skipped"
