@@ -16,6 +16,13 @@ from .render import draw_overlay
 from .scheduler import MotionGatedDetector
 
 
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="motiongate", description=__doc__.splitlines()[0])
     p.add_argument("source", help="video file or integer camera index")
@@ -39,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", type=Path, help="write an annotated video (mp4)")
     p.add_argument("--log", type=Path, help="write one CSV row per frame")
     p.add_argument("--show", action="store_true", help="display the annotated stream (Esc quits)")
-    p.add_argument("--max-frames", type=int, default=0, help="stop after N frames (0 = no limit)")
+    p.add_argument("--max-frames", type=_non_negative_int, default=0, help="stop after N frames (0 = no limit)")
     return p
 
 
@@ -73,7 +80,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     gate = make_gate(args.gate, gate_config)
-    detector = UltralyticsPersonDetector(args.weights, args.conf, args.imgsz, args.device)
+    try:
+        detector = UltralyticsPersonDetector(args.weights, args.conf, args.imgsz, args.device)
+    except (ImportError, ValueError) as exc:
+        capture.release()
+        print(f"error: cannot initialise detector: {exc}", file=sys.stderr)
+        return 2
     system = MotionGatedDetector(detector, gate, scheduler_config)
 
     _ensure_parent(args.output)
