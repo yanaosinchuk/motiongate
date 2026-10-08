@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/tracking-video-benchmark.yml"
       - "benchmark/tracking_video_study.py"
+      - "src/motiongate/scheduler.py"
   workflow_dispatch:
 
 permissions:
