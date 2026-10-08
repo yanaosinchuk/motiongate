@@ -116,7 +116,8 @@ def fig_pipeline(args, scene, scenarios, seed0):
     t = 40
     cfg = GateConfig(keep_mask=True)
     fd, fds = make_gate("difference", cfg), make_gate("stabilized", cfg)
-    fd.update(frames[t - 1]); fds.update(frames[t - 1])
+    fd.update(frames[t - 1])
+    fds.update(frames[t - 1])
     r_fd, r_fds = fd.update(frames[t]), fds.update(frames[t])
     out = frames[t].copy()
     for x1, y1, x2, y2 in r_fds.boxes:
