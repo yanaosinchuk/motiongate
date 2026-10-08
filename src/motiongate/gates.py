@@ -360,6 +360,12 @@ class MOG2Gate:
         detect_shadows: bool = True,
         learning_rate: float = -1.0,
     ) -> None:
+        if not isinstance(history, int) or isinstance(history, bool) or history < 1:
+            raise ValueError("history must be a positive integer")
+        if not math.isfinite(var_threshold) or var_threshold <= 0:
+            raise ValueError("var_threshold must be positive and finite")
+        if not math.isfinite(learning_rate) or not (-1.0 <= learning_rate <= 1.0):
+            raise ValueError("learning_rate must lie in [-1, 1]")
         self.config = config or GateConfig()
         self.history = history
         self.var_threshold = var_threshold
