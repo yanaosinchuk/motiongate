@@ -90,6 +90,47 @@ class StabilizationConfig:
 
 
 @dataclass(frozen=True)
+class TrackingConfig:
+    """Parameters of the sparse Lucas--Kanade box tracker."""
+
+    max_corners_per_box: int = 40
+    quality_level: float = 0.01
+    min_distance: float = 5.0
+    block_size: int = 7
+    win_size: int = 21
+    max_level: int = 3
+    fb_threshold: float = 1.5
+    min_points: int = 4
+    min_quality: float = 0.5
+
+    def __post_init__(self) -> None:
+        for name in ("quality_level", "min_distance", "fb_threshold", "min_quality"):
+            _require_finite(name, getattr(self, name))
+        for name in ("max_corners_per_box", "block_size", "win_size", "max_level", "min_points"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"{name} must be an integer")
+        if self.max_corners_per_box < 1:
+            raise ValueError("max_corners_per_box must be at least 1")
+        if not 0 < self.quality_level <= 1:
+            raise ValueError("quality_level must be in (0, 1]")
+        if self.min_distance < 0:
+            raise ValueError("min_distance must be non-negative")
+        if self.block_size < 2:
+            raise ValueError("block_size must be at least 2")
+        if self.win_size < 3:
+            raise ValueError("win_size must be at least 3")
+        if self.max_level < 0:
+            raise ValueError("max_level must be non-negative")
+        if self.fb_threshold <= 0:
+            raise ValueError("fb_threshold must be positive")
+        if self.min_points < 1:
+            raise ValueError("min_points must be at least 1")
+        if not 0 <= self.min_quality <= 1:
+            raise ValueError("min_quality must be in [0, 1]")
+
+
+@dataclass(frozen=True)
 class SchedulerConfig:
     """Parameters of the inference scheduler.
 
