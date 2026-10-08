@@ -57,12 +57,24 @@ class GateResult:
 
 
 @dataclass(frozen=True, slots=True)
+class TrackingResult:
+    """Result of propagating detector boxes from one frame to the next."""
+
+    detections: tuple[Detection, ...]
+    quality: float
+    reliable: bool
+    tracked_points: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class FrameResult:
     """Everything the scheduler knows about one processed frame.
 
     ``fresh`` distinguishes detections computed on *this* frame from detections
     retained from an earlier frame; ``detection_age`` is the number of frames
-    since the retained detections were produced (0 when fresh).
+    since the retained detections were produced (0 when fresh). When a tracker
+    propagates retained boxes, ``tracked`` is true and ``tracking_quality``
+    reports the tracker's confidence in that propagation.
     """
 
     index: int
@@ -73,6 +85,8 @@ class FrameResult:
     gate: GateResult
     gate_ms: float
     detector_ms: float
+    tracked: bool = False
+    tracking_quality: float | None = None
 
     @property
     def total_ms(self) -> float:
