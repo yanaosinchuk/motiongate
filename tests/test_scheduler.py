@@ -14,7 +14,7 @@ class ScriptedGate:
         return GateResult(active=bool(self.decisions[self.t]), ready=self.t > 0)
 
     def reset(self):
-        pass
+        self.t = -1
 
 
 class CountingDetector:
@@ -90,3 +90,52 @@ def test_config_validation_and_staleness_conversion():
         SchedulerConfig(5, 6)
     cfg = SchedulerConfig.from_max_staleness(1.0, 30)
     assert cfg.refresh_interval == 31        # ages <= 30 frames = 1 s
+
+
+def test_reset_starts_a_new_stream_and_clears_stats():
+    results, _, system = run([0, 0, 0], k=10)
+    assert results[-1].index == 2
+    assert system.stats.frames == 3
+
+    system.reset()
+    result = system.process(next(frames(1)))
+
+    assert result.index == 0
+    assert result.reason == "initial"
+    assert result.detection_age == 0
+    assert system.stats.frames == 1
+    assert system.stats.invocations == 1
+
+
+def test_reset_stats_preserves_stream_state():
+    det = CountingDetector()
+    system = MotionGatedDetector(det, ScriptedGate([0, 0, 0]), SchedulerConfig(10))
+    stream = frames(3)
+    system.process(next(stream))
+    second = system.process(next(stream))
+    assert second.detection_age == 1
+
+    system.reset_stats()
+    next_result = system.process(next(stream))
+
+    assert next_result.index == 2
+    assert next_result.reason == "skipped"
+    assert next_result.detection_age == 2
+    assert system.stats.frames == 1
+
+
+def test_resolution_change_preserves_global_stats_and_index():
+    det = CountingDetector()
+    system = MotionGatedDetector(det, ScriptedGate([0, 0, 0]), SchedulerConfig(10))
+    system.process(np.zeros((8, 8, 3), np.uint8))
+    system.process(np.zeros((8, 8, 3), np.uint8))
+    result = system.process(np.zeros((16, 16, 3), np.uint8))
+
+    assert result.reason == "initial"
+    assert result.index == 2
+    assert system.stats.frames == 3
+
+
+def test_from_max_staleness_rejects_incompatible_min_interval():
+    with pytest.raises(ValueError, match="min_interval"):
+        SchedulerConfig.from_max_staleness(0.1, 10, min_interval=3)

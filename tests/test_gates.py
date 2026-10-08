@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import pytest
 
-from motiongate import FrameDifferenceGate, GateConfig, MOG2Gate, StabilizedDifferenceGate, make_gate
+from motiongate import FrameDifferenceGate, GateConfig, MOG2Gate, StabilizationConfig, StabilizedDifferenceGate, make_gate
+from motiongate.gates import stabilized_difference_mask
 
 
 def shift(img, dx, dy):
@@ -62,7 +63,8 @@ def test_fds_still_sees_object_under_jitter(texture):
 
 def test_noise_below_prediction_is_ignored(texture):
     rng = np.random.default_rng(1)
-    noisy = lambda: np.clip(texture + rng.normal(0, 3, texture.shape), 0, 255).astype(np.uint8)
+    def noisy():
+        return np.clip(texture + rng.normal(0, 3, texture.shape), 0, 255).astype(np.uint8)
     for gate in (FrameDifferenceGate(), StabilizedDifferenceGate()):
         gate.update(noisy())
         assert not any(gate.update(noisy()).active for _ in range(5))
@@ -96,3 +98,38 @@ def test_mask_kept_only_on_request(texture):
     gate = FrameDifferenceGate(GateConfig(keep_mask=True))
     gate.update(texture)
     assert gate.update(texture).mask is not None
+
+
+def test_stabilized_mask_compensates_global_offset():
+    current = np.full((64, 64), 140.0, np.float32)
+    reference = np.full((64, 64), 100.0, np.float32)
+    config = GateConfig(dilation_iterations=0)
+    mask, offset = stabilized_difference_mask(current, reference, config, StabilizationConfig())
+
+    assert offset == pytest.approx(40.0)
+    assert not np.any(mask)
+
+
+def test_stabilized_mask_rejects_shape_mismatch():
+    config = GateConfig()
+    with pytest.raises(ValueError, match="same shape"):
+        stabilized_difference_mask(
+            np.zeros((16, 16), np.float32),
+            np.zeros((15, 16), np.float32),
+            config,
+            StabilizationConfig(),
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"history": 0},
+        {"var_threshold": 0},
+        {"learning_rate": -2},
+        {"learning_rate": 1.1},
+    ],
+)
+def test_mog2_rejects_invalid_parameters(kwargs):
+    with pytest.raises(ValueError):
+        MOG2Gate(**kwargs)

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import pytest
 
-from benchmark.evaluation import iou, match, wilson
+from benchmark.evaluation import iou, match, schedule, wilson
 from motiongate import GateConfig, theory
 from motiongate.gates import classic_difference_mask
 
@@ -40,7 +40,8 @@ def test_predicted_noise_onset_orders_the_two_pipelines():
     lo_fds = theory.critical_sigma(20, 1e-3, "robust")
     assert 11 < lo_fd < 14 and lo_fds > 1.5 * lo_fd
     rng = np.random.default_rng(4)
-    frame = lambda s: np.clip(128 + rng.normal(0, s, (200, 200, 3)), 0, 255).astype(np.uint8)
+    def frame(s):
+        return np.clip(128 + rng.normal(0, s, (200, 200, 3)), 0, 255).astype(np.uint8)
     cfg = GateConfig(dilation_iterations=0)
     below = classic_difference_mask(frame(0.7 * lo_fd), frame(0.7 * lo_fd), cfg).mean() / 255
     above = classic_difference_mask(frame(1.3 * lo_fd), frame(1.3 * lo_fd), cfg).mean() / 255
@@ -52,3 +53,18 @@ def test_cost_model_and_bounds():
     assert theory.break_even_ratio(1.0, 100.0) == pytest.approx(0.99)
     assert theory.invocation_bounds(15, 3) == (1 / 15, 1 / 3)
     assert theory.area_model_critical_speed(113) == pytest.approx(900 / 119 - 6)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"n": -1},
+        {"n": 10, "fixed_rate": 0},
+        {"n": 10, "refresh": 0},
+        {"n": 10, "refresh": 5, "min_interval": 6},
+        {"n": 3, "gate": [False, True]},
+    ],
+)
+def test_schedule_rejects_invalid_policy_configuration(kwargs):
+    with pytest.raises(ValueError):
+        schedule(**kwargs)

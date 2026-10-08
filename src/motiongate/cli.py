@@ -1,10 +1,4 @@
-"""Command-line interface: run the motion-gated person detector on a video or camera.
-
-Examples
---------
-    motiongate input.mp4 --output annotated.mp4 --log frames.csv
-    motiongate 0 --show --gate stabilized --max-staleness 1.0      # webcam 0
-"""
+"""Command-line interface for motion-gated person detection."""
 
 from __future__ import annotations
 
@@ -22,6 +16,13 @@ from .render import draw_overlay
 from .scheduler import MotionGatedDetector
 
 
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="motiongate", description=__doc__.splitlines()[0])
     p.add_argument("source", help="video file or integer camera index")
@@ -32,8 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dilation", type=int, default=3, help="dilation iterations d")
     group = p.add_mutually_exclusive_group()
     group.add_argument("--refresh", type=int, help="refresh interval K in frames")
-    group.add_argument("--max-staleness", type=float, default=1.0,
-                       help="maximum age of retained detections in seconds (default 1.0)")
+    group.add_argument(
+        "--max-staleness",
+        type=float,
+        default=1.0,
+        help="maximum age of retained detections in seconds (default 1.0)",
+    )
     p.add_argument("--min-interval", type=int, default=1, help="minimum frames between detector calls M")
     p.add_argument("--conf", type=float, default=0.25, help="detector confidence threshold")
     p.add_argument("--imgsz", type=int, default=640)
@@ -41,8 +46,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", type=Path, help="write an annotated video (mp4)")
     p.add_argument("--log", type=Path, help="write one CSV row per frame")
     p.add_argument("--show", action="store_true", help="display the annotated stream (Esc quits)")
-    p.add_argument("--max-frames", type=int, default=0, help="stop after N frames (0 = no limit)")
+    p.add_argument("--max-frames", type=_non_negative_int, default=0, help="stop after N frames (0 = no limit)")
     return p
+
+
+def _scheduler_config(args: argparse.Namespace, fps: float) -> SchedulerConfig:
+    if args.refresh is not None:
+        return SchedulerConfig(args.refresh, args.min_interval)
+    return SchedulerConfig.from_max_staleness(args.max_staleness, fps, args.min_interval)
+
+
+def _ensure_parent(path: Path | None) -> None:
+    if path is not None:
+        path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,39 +68,69 @@ def main(argv: list[str] | None = None) -> int:
     if not capture.isOpened():
         print(f"error: cannot open video source {args.source!r}", file=sys.stderr)
         return 2
+
     fps = capture.get(cv2.CAP_PROP_FPS)
     fps = fps if fps and fps > 0 else 30.0
+    try:
+        scheduler_config = _scheduler_config(args, fps)
+        gate_config = GateConfig(args.threshold, args.min_area, args.dilation)
+    except (TypeError, ValueError) as exc:
+        capture.release()
+        print(f"error: invalid configuration: {exc}", file=sys.stderr)
+        return 2
 
-    if args.refresh is not None:
-        scheduler_config = SchedulerConfig(args.refresh, min(args.min_interval, args.refresh))
-    else:
-        scheduler_config = SchedulerConfig.from_max_staleness(args.max_staleness, fps, args.min_interval)
-    gate = make_gate(args.gate, GateConfig(args.threshold, args.min_area, args.dilation))
-    detector = UltralyticsPersonDetector(args.weights, args.conf, args.imgsz, args.device)
+    gate = make_gate(args.gate, gate_config)
+    try:
+        detector = UltralyticsPersonDetector(args.weights, args.conf, args.imgsz, args.device)
+    except (ImportError, ValueError) as exc:
+        capture.release()
+        print(f"error: cannot initialise detector: {exc}", file=sys.stderr)
+        return 2
     system = MotionGatedDetector(detector, gate, scheduler_config)
 
+    _ensure_parent(args.output)
+    _ensure_parent(args.log)
     writer = None
     log_file = open(args.log, "w", newline="") if args.log else None
     log = csv.writer(log_file) if log_file else None
     if log:
-        log.writerow(["frame", "fresh", "reason", "detection_age", "gate_active",
-                      "persons", "gate_ms", "detector_ms"])
+        log.writerow(
+            ["frame", "fresh", "reason", "detection_age", "gate_active", "persons", "gate_ms", "detector_ms"]
+        )
+
     try:
         while True:
             ok, frame = capture.read()
-            if not ok or frame is None:   # end of stream or read failure
+            if not ok or frame is None:
                 break
             result = system.process(frame)
             if log:
-                log.writerow([result.index, int(result.fresh), result.reason, result.detection_age,
-                              int(result.gate.active), len(result.detections),
-                              f"{result.gate_ms:.3f}", f"{result.detector_ms:.3f}"])
+                log.writerow(
+                    [
+                        result.index,
+                        int(result.fresh),
+                        result.reason,
+                        result.detection_age,
+                        int(result.gate.active),
+                        len(result.detections),
+                        f"{result.gate_ms:.3f}",
+                        f"{result.detector_ms:.3f}",
+                    ]
+                )
             if args.output or args.show:
                 canvas = draw_overlay(frame, result)
                 if args.output:
                     if writer is None:
                         h, w = canvas.shape[:2]
-                        writer = cv2.VideoWriter(str(args.output), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+                        writer = cv2.VideoWriter(
+                            str(args.output),
+                            cv2.VideoWriter_fourcc(*"mp4v"),
+                            fps,
+                            (w, h),
+                        )
+                        if not writer.isOpened():
+                            print(f"error: cannot open output video {args.output}", file=sys.stderr)
+                            return 2
                     writer.write(canvas)
                 if args.show:
                     cv2.imshow("motiongate", canvas)
@@ -103,9 +149,11 @@ def main(argv: list[str] | None = None) -> int:
 
     s = system.stats
     if s.frames:
-        print(f"frames={s.frames} detector_calls={s.invocations} ratio={s.invocation_ratio:.3f} "
-              f"reasons={dict(s.reasons)} mean_ms/frame={s.total_ms / s.frames:.1f} "
-              f"K={scheduler_config.refresh_interval} M={scheduler_config.min_interval}")
+        print(
+            f"frames={s.frames} detector_calls={s.invocations} ratio={s.invocation_ratio:.3f} "
+            f"reasons={dict(s.reasons)} mean_ms/frame={s.total_ms / s.frames:.1f} "
+            f"K={scheduler_config.refresh_interval} M={scheduler_config.min_interval}"
+        )
     return 0
 
 

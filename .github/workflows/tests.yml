@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,analysis]"
+
+      - name: Lint
+        run: ruff check src tests benchmark
+
+      - name: Import benchmark pipeline
+        run: python -m benchmark.run --help > /dev/null
+
+      - name: Run tests
+        run: pytest -q

@@ -2,7 +2,7 @@
 
 The scheduler only depends on the tiny :class:`PersonDetector` protocol, so the
 neural network can be replaced by any callable that maps a BGR frame to a list
-of :class:`~motiongate.types.Detection` objects -- another YOLO version, an
+of :class:`~motiongate.datatypes.Detection` objects -- another YOLO version, an
 exported ONNX/TensorRT model, or a fake detector in unit tests.
 
 Ultralytics is imported lazily so that the gate, the scheduler and the tests do
@@ -58,6 +58,10 @@ class UltralyticsPersonDetector:
     ) -> None:
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("confidence must be in [0, 1]")
+        if not isinstance(image_size, int) or isinstance(image_size, bool) or image_size < 1:
+            raise ValueError("image_size must be a positive integer")
+        if not isinstance(person_class_id, int) or isinstance(person_class_id, bool) or person_class_id < 0:
+            raise ValueError("person_class_id must be a non-negative integer")
         try:
             from ultralytics import YOLO
         except ImportError as exc:  # pragma: no cover - depends on the environment

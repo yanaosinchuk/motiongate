@@ -40,6 +40,7 @@ __all__ = [
     "StabilizedDifferenceGate",
     "MOG2Gate",
     "classic_difference_mask",
+    "stabilized_difference_mask",
     "analyse_mask",
     "make_gate",
     "GATE_NAMES",
@@ -76,7 +77,9 @@ def _to_gray(frame: np.ndarray) -> np.ndarray:
 
 
 def _edge_residual(residual: np.ndarray, edges: np.ndarray) -> float:
-    """Median absolute residual on edge pixels after removing the global median (offset)."""
+    """Median absolute residual on edge pixels after removing the global median offset."""
+    if not np.any(edges):
+        return math.inf
     return float(np.median(np.abs(residual[edges] - np.median(residual[::2, ::2]))))
 
 
@@ -108,6 +111,83 @@ def classic_difference_mask(previous: np.ndarray, current: np.ndarray, config: G
     if config.dilation_iterations > 0:
         binary = cv2.dilate(binary, None, iterations=config.dilation_iterations)
     return binary
+
+
+def _illumination_offset(
+    residual: np.ndarray,
+    valid: np.ndarray,
+    compensate: bool,
+) -> float:
+    """Estimate a robust global brightness offset from valid pixels."""
+    if not compensate:
+        return 0.0
+    sample = residual[::4, ::4][valid[::4, ::4]]
+    return float(np.median(sample)) if sample.size else 0.0
+
+
+def _registration_threshold(
+    current: np.ndarray,
+    base_threshold: float,
+    tolerance: float,
+    compensated: bool,
+) -> float | np.ndarray:
+    """Propagate registration uncertainty into a spatially varying threshold."""
+    if not compensated or tolerance <= 0:
+        return base_threshold
+    gx = cv2.Sobel(current, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(current, cv2.CV_32F, 0, 1, ksize=3)
+    # A 3x3 Sobel derivative has a scale factor of eight for a linear ramp.
+    return base_threshold + (tolerance / 8.0) * cv2.magnitude(gx, gy)
+
+
+def stabilized_difference_mask(
+    current: np.ndarray,
+    reference: np.ndarray,
+    config: GateConfig,
+    stabilization: StabilizationConfig,
+    margin: int = 0,
+) -> tuple[np.ndarray, float]:
+    """Build the FD-S change mask from aligned, smoothed grayscale frames.
+
+    The function is intentionally stateless: registration is handled by the
+    gate, while photometric compensation, uncertainty propagation and
+    thresholding can be unit-tested independently.
+    """
+    if current.shape != reference.shape:
+        raise ValueError("current and reference must have the same shape")
+    if current.ndim != 2:
+        raise ValueError("current and reference must be 2-D grayscale arrays")
+    if margin < 0:
+        raise ValueError("margin must be non-negative")
+
+    residual = current - reference
+    h, w = current.shape
+    inside = np.ones(current.shape, dtype=bool)
+    if margin:
+        margin = min(margin, h, w)
+        inside[:margin, :] = False
+        inside[h - margin :, :] = False
+        inside[:, :margin] = False
+        inside[:, w - margin :] = False
+
+    lo = stabilization.saturation_margin
+    hi = 255.0 - lo
+    unsaturated = inside & (current > lo) & (current < hi) & (reference > lo) & (reference < hi)
+    offset = _illumination_offset(residual, unsaturated, stabilization.compensate_illumination)
+
+    # Clipped pixels cannot follow a global offset. Ignore them only while an
+    # offset is actually being compensated so saturated moving objects remain visible.
+    valid = unsaturated if abs(offset) > stabilization.saturation_offset else inside
+    threshold = _registration_threshold(
+        current,
+        config.threshold,
+        stabilization.registration_tolerance,
+        compensated=margin > 0,
+    )
+    mask = ((np.abs(residual - offset) > threshold) & valid).astype(np.uint8) * 255
+    if config.dilation_iterations > 0:
+        mask = cv2.dilate(mask, None, iterations=config.dilation_iterations)
+    return mask, offset
 
 
 class FrameDifferenceGate:
@@ -208,10 +288,14 @@ class StabilizedDifferenceGate:
         m = np.float32([[1.0, 0.0, dx * scale], [0.0, 1.0, dy * scale]])
         warped = cv2.warpAffine(previous_small, m, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
         b = int(math.ceil(max(abs(dx), abs(dy)) * scale)) + 1
+        if 2 * b >= h or 2 * b >= w:
+            return 0.0, 0.0
         inner = (slice(b, h - b), slice(b, w - b))
         cur, prev, wrp = current_small[inner], previous_small[inner], warped[inner]
         grad = cv2.magnitude(cv2.Sobel(cur, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(cur, cv2.CV_32F, 0, 1, ksize=3))
         edges = grad >= np.quantile(grad[::2, ::2], 0.9)
+        if not np.any(edges) or not np.any(grad[edges] > 0):
+            return 0.0, 0.0
         if _edge_residual(cur - wrp, edges) > self.stabilization.min_residual_gain * _edge_residual(cur - prev, edges):
             return 0.0, 0.0
         return float(dx), float(dy)
@@ -241,40 +325,13 @@ class StabilizedDifferenceGate:
             reference = previous
             margin = 0
 
-        residual = current - reference
-        inside = np.ones(current.shape, dtype=bool)
-        if margin:
-            inside[:margin, :] = False
-            inside[h - margin :, :] = False
-            inside[:, :margin] = False
-            inside[:, w - margin :] = False
-        lo = self.stabilization.saturation_margin
-        hi = 255.0 - lo
-        unsaturated = inside & (current > lo) & (current < hi) & (reference > lo) & (reference < hi)
-
-        offset = 0.0
-        if self.stabilization.compensate_illumination:
-            # A strided median is ~20x cheaper than the full median and just as robust.
-            sample = residual[::4, ::4][unsaturated[::4, ::4]]
-            if sample.size:
-                offset = float(np.median(sample))
-        # Clipped pixels cannot follow a global offset, so they are ignored -- but
-        # only while an offset is actually compensated; otherwise a saturated
-        # (e.g. white) moving object would become invisible.
-        valid = unsaturated if abs(offset) > self.stabilization.saturation_offset else inside
-
-        threshold: float | np.ndarray = self.config.threshold
-        eps = self.stabilization.registration_tolerance
-        if margin and eps > 0:
-            # First-order error propagation: a registration error e leaves a
-            # residual of about e . grad(I).  After compensation, a pixel is
-            # therefore called "changed" only if |R| > tau + eps * |grad G_t|.
-            gx = cv2.Sobel(current, cv2.CV_32F, 1, 0, ksize=3)
-            gy = cv2.Sobel(current, cv2.CV_32F, 0, 1, ksize=3)
-            threshold = self.config.threshold + (eps / 8.0) * cv2.magnitude(gx, gy)
-        mask = ((np.abs(residual - offset) > threshold) & valid).astype(np.uint8) * 255
-        if self.config.dilation_iterations > 0:
-            mask = cv2.dilate(mask, None, iterations=self.config.dilation_iterations)
+        mask, offset = stabilized_difference_mask(
+            current,
+            reference,
+            self.config,
+            self.stabilization,
+            margin,
+        )
 
         active, boxes, largest = analyse_mask(mask, self.config.min_area)
         return GateResult(
@@ -305,6 +362,12 @@ class MOG2Gate:
         detect_shadows: bool = True,
         learning_rate: float = -1.0,
     ) -> None:
+        if not isinstance(history, int) or isinstance(history, bool) or history < 1:
+            raise ValueError("history must be a positive integer")
+        if not math.isfinite(var_threshold) or var_threshold <= 0:
+            raise ValueError("var_threshold must be positive and finite")
+        if not math.isfinite(learning_rate) or not (-1.0 <= learning_rate <= 1.0):
+            raise ValueError("learning_rate must lie in [-1, 1]")
         self.config = config or GateConfig()
         self.history = history
         self.var_threshold = var_threshold
