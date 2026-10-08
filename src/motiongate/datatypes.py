@@ -85,9 +85,10 @@ class FrameResult:
     gate: GateResult
     gate_ms: float
     detector_ms: float
+    tracker_ms: float = 0.0
     tracked: bool = False
     tracking_quality: float | None = None
 
     @property
     def total_ms(self) -> float:
-        return self.gate_ms + self.detector_ms
+        return self.gate_ms + self.tracker_ms + self.detector_ms
