@@ -33,7 +33,7 @@ from .plotting import fig_envelope, fig_pipeline, fig_scenarios, fig_tradeoff, s
 from .policies import evaluate_policies
 from .reporting import build_macros, build_tables, export_latex
 from .runtime import BudgetExceeded, check_budget, configure_budget, log
-from .settings import CONFIDENCE, GATES, IMAGE_SIZE, ROOT
+from .settings import CONFIDENCE, GATES, IMAGE_SIZE, IOU_THRESHOLD, REFRESH, ROOT
 
 # ---------------------------------------------------------------------------
 # 1. Controlled benchmark: gate study over seeds + YOLO pass on seed 0
