@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import pytest
 
-from motiongate import FrameDifferenceGate, GateConfig, MOG2Gate, StabilizedDifferenceGate, make_gate
+from motiongate import FrameDifferenceGate, GateConfig, MOG2Gate, StabilizationConfig, StabilizedDifferenceGate, make_gate
+from motiongate.gates import stabilized_difference_mask
 
 
 def shift(img, dx, dy):
@@ -96,3 +97,24 @@ def test_mask_kept_only_on_request(texture):
     gate = FrameDifferenceGate(GateConfig(keep_mask=True))
     gate.update(texture)
     assert gate.update(texture).mask is not None
+
+
+def test_stabilized_mask_compensates_global_offset():
+    current = np.full((64, 64), 140.0, np.float32)
+    reference = np.full((64, 64), 100.0, np.float32)
+    config = GateConfig(dilation_iterations=0)
+    mask, offset = stabilized_difference_mask(current, reference, config, StabilizationConfig())
+
+    assert offset == pytest.approx(40.0)
+    assert not np.any(mask)
+
+
+def test_stabilized_mask_rejects_shape_mismatch():
+    config = GateConfig()
+    with pytest.raises(ValueError, match="same shape"):
+        stabilized_difference_mask(
+            np.zeros((16, 16), np.float32),
+            np.zeros((15, 16), np.float32),
+            config,
+            StabilizationConfig(),
+        )
