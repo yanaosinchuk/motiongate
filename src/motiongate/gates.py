@@ -294,6 +294,8 @@ class StabilizedDifferenceGate:
         cur, prev, wrp = current_small[inner], previous_small[inner], warped[inner]
         grad = cv2.magnitude(cv2.Sobel(cur, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(cur, cv2.CV_32F, 0, 1, ksize=3))
         edges = grad >= np.quantile(grad[::2, ::2], 0.9)
+        if not np.any(edges) or not np.any(grad[edges] > 0):
+            return 0.0, 0.0
         if _edge_residual(cur - wrp, edges) > self.stabilization.min_residual_gain * _edge_residual(cur - prev, edges):
             return 0.0, 0.0
         return float(dx), float(dy)
