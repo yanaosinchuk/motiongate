@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from benchmark.evaluation import schedule
-from motiongate import Detection, GateResult, MotionGatedDetector, SchedulerConfig
+from motiongate import Detection, GateResult, MotionGatedDetector, SchedulerConfig, TrackingResult
 
 
 class ScriptedGate:
@@ -12,6 +12,23 @@ class ScriptedGate:
     def update(self, frame):
         self.t += 1
         return GateResult(active=bool(self.decisions[self.t]), ready=self.t > 0)
+
+    def reset(self):
+        self.t = -1
+
+
+class ScriptedTracker:
+    def __init__(self, results):
+        self.results = list(results)
+        self.t = -1
+        self.initializations = 0
+
+    def initialize(self, frame, detections):
+        self.initializations += 1
+
+    def update(self, frame):
+        self.t += 1
+        return self.results[self.t]
 
     def reset(self):
         self.t = -1
@@ -139,3 +156,48 @@ def test_resolution_change_preserves_global_stats_and_index():
 def test_from_max_staleness_rejects_incompatible_min_interval():
     with pytest.raises(ValueError, match="min_interval"):
         SchedulerConfig.from_max_staleness(0.1, 10, min_interval=3)
+
+
+def test_reliable_tracker_updates_boxes_on_skipped_frame():
+    tracked_detection = Detection((2, 1, 12, 11), 0.9)
+    tracker = ScriptedTracker([TrackingResult((tracked_detection,), 0.9, True, 8)])
+    detector = CountingDetector()
+    system = MotionGatedDetector(
+        detector,
+        ScriptedGate([0, 0]),
+        SchedulerConfig(10),
+        tracker=tracker,
+    )
+    stream = frames(2)
+    first = system.process(next(stream))
+    second = system.process(next(stream))
+
+    assert first.fresh
+    assert not second.fresh
+    assert second.tracked
+    assert second.tracking_quality == pytest.approx(0.9)
+    assert second.detections == (tracked_detection,)
+    assert second.detection_age == 1
+
+
+def test_tracker_failure_requests_refresh_without_breaking_rate_limit():
+    failed = TrackingResult((Detection((0, 0, 10, 10), 0.9),), 0.1, False, 1)
+    tracker = ScriptedTracker([failed] * 9)
+    detector = CountingDetector()
+    system = MotionGatedDetector(
+        detector,
+        ScriptedGate([0] * 10),
+        SchedulerConfig(30, 3),
+        tracker=tracker,
+    )
+
+    results = [system.process(frame) for frame in frames(10)]
+
+    assert detector.calls == [0, 3, 6, 9]
+    assert results[1].reason == "skipped"
+    assert results[2].reason == "skipped"
+    assert results[3].reason == "tracking"
+    assert all(
+        b - a >= 3
+        for a, b in zip(detector.calls, detector.calls[1:])
+    )
