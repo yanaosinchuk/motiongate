@@ -1,10 +1,9 @@
 """Validated configuration objects.
 
-The default values of :class:`GateConfig` reproduce the original OpenCV
-prototype (5x5 Gaussian kernel, threshold 20, three dilations, minimum contour
-area 900 px).  Validation happens once, at construction time, so that a bad
-parameter fails loudly instead of silently producing an always-on or never-on
-gate.
+The defaults reproduce the original OpenCV prototype: a 5x5 Gaussian kernel,
+threshold 20, three dilations and a minimum contour area of 900 pixels.
+Validation happens once at construction time so invalid parameters fail loudly
+instead of being silently corrected.
 """
 
 from __future__ import annotations
@@ -13,23 +12,34 @@ import math
 from dataclasses import dataclass
 
 
+def _require_finite(name: str, value: float) -> None:
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite, got {value}")
+
+
 @dataclass(frozen=True)
 class GateConfig:
     """Parameters shared by all difference-based gates."""
 
-    threshold: float = 20.0          # tau, on the 0..255 intensity scale
-    min_area: float = 900.0          # A_min, contour area in pixels
-    dilation_iterations: int = 3     # d, iterations of a 3x3 square dilation
-    blur_kernel: int = 5             # k, odd Gaussian kernel size
-    keep_mask: bool = False          # keep the binary mask in GateResult (diagnostics)
+    threshold: float = 20.0
+    min_area: float = 900.0
+    dilation_iterations: int = 3
+    blur_kernel: int = 5
+    keep_mask: bool = False
 
     def __post_init__(self) -> None:
+        _require_finite("threshold", self.threshold)
+        _require_finite("min_area", self.min_area)
         if not 0 <= self.threshold < 255:
             raise ValueError(f"threshold must be in [0, 255), got {self.threshold}")
-        if self.min_area < 0:
-            raise ValueError(f"min_area must be non-negative, got {self.min_area}")
+        if self.min_area <= 0:
+            raise ValueError(f"min_area must be positive, got {self.min_area}")
+        if not isinstance(self.dilation_iterations, int) or isinstance(self.dilation_iterations, bool):
+            raise TypeError("dilation_iterations must be an integer")
         if self.dilation_iterations < 0:
             raise ValueError("dilation_iterations must be non-negative")
+        if not isinstance(self.blur_kernel, int) or isinstance(self.blur_kernel, bool):
+            raise TypeError("blur_kernel must be an integer")
         if self.blur_kernel < 1 or self.blur_kernel % 2 == 0:
             raise ValueError(f"blur_kernel must be a positive odd integer, got {self.blur_kernel}")
 
@@ -38,18 +48,29 @@ class GateConfig:
 class StabilizationConfig:
     """Extra parameters of the stabilised, illumination-compensated gate."""
 
-    compensate_motion: bool = True        # estimate and remove global translation
-    compensate_illumination: bool = True  # remove the global (median) intensity offset
-    estimation_scale: float = 0.5         # downscale factor for phase correlation
-    max_shift: float = 20.0               # reject implausible shift estimates (pixels)
-    min_response: float = 0.05            # reject weak phase-correlation peaks
-    min_residual_gain: float = 0.9        # accept a shift only if it lowers the edge residual by >= 10 %
-    min_shift: float = 0.1                # shifts below this (px) are below estimation accuracy -> treated as zero
-    saturation_margin: float = 6.0        # ignore pixels within this distance of 0 or 255 (clipped sensor values)
-    registration_tolerance: float = 0.5   # epsilon: assumed registration error in pixels (threshold tau + eps*|grad|)
-    saturation_offset: float = 2.0        # mask saturated pixels only when a larger global offset is compensated
+    compensate_motion: bool = True
+    compensate_illumination: bool = True
+    estimation_scale: float = 0.5
+    max_shift: float = 20.0
+    min_response: float = 0.05
+    min_residual_gain: float = 0.9
+    min_shift: float = 0.1
+    saturation_margin: float = 6.0
+    registration_tolerance: float = 0.5
+    saturation_offset: float = 2.0
 
     def __post_init__(self) -> None:
+        for name in (
+            "estimation_scale",
+            "max_shift",
+            "min_response",
+            "min_residual_gain",
+            "min_shift",
+            "saturation_margin",
+            "registration_tolerance",
+            "saturation_offset",
+        ):
+            _require_finite(name, getattr(self, name))
         if not 0 < self.estimation_scale <= 1:
             raise ValueError("estimation_scale must be in (0, 1]")
         if self.max_shift <= 0:
@@ -58,27 +79,33 @@ class StabilizationConfig:
             raise ValueError("min_response must be in [0, 1]")
         if not 0 < self.min_residual_gain <= 1:
             raise ValueError("min_residual_gain must be in (0, 1]")
+        if self.min_shift < 0:
+            raise ValueError("min_shift must be non-negative")
+        if not 0 <= self.saturation_margin < 127.5:
+            raise ValueError("saturation_margin must be in [0, 127.5)")
+        if self.registration_tolerance < 0:
+            raise ValueError("registration_tolerance must be non-negative")
+        if self.saturation_offset < 0:
+            raise ValueError("saturation_offset must be non-negative")
 
 
 @dataclass(frozen=True)
 class SchedulerConfig:
     """Parameters of the inference scheduler.
 
-    ``refresh_interval`` (K): the detector is forced to run once K frames have
-    passed since its last call, so retained detections are never older than
-    K - 1 frames.
-
-    ``min_interval`` (M): motion triggers the detector only if at least M frames
-    have passed since its last call.  Motion is never dropped, only delayed: a
-    suppressed trigger stays pending until the gap reaches M.  M = 1 reproduces
-    the original rule "run on every motion frame".  Together the two knobs bound
-    the invocation ratio between 1/K (static scene) and 1/M (continuous motion).
+    refresh_interval (K) forces a detector call once K frames have passed since
+    the previous call. min_interval (M) rate-limits motion-triggered calls.
+    Motion is delayed rather than discarded.
     """
 
     refresh_interval: int = 30
     min_interval: int = 1
 
     def __post_init__(self) -> None:
+        if not isinstance(self.refresh_interval, int) or isinstance(self.refresh_interval, bool):
+            raise TypeError("refresh_interval must be an integer")
+        if not isinstance(self.min_interval, int) or isinstance(self.min_interval, bool):
+            raise TypeError("min_interval must be an integer")
         if self.refresh_interval < 1:
             raise ValueError("refresh_interval must be at least 1 frame")
         if not 1 <= self.min_interval <= self.refresh_interval:
@@ -88,10 +115,12 @@ class SchedulerConfig:
     def from_max_staleness(cls, seconds: float, fps: float, min_interval: int = 1) -> "SchedulerConfig":
         """Derive K from a maximum tolerated detection age in seconds.
 
-        Retained detections are at most ``K - 1`` frames, i.e. ``(K - 1) / fps``
-        seconds, old; the largest K meeting the requirement is returned.
+        Retained detections are at most K - 1 frames old. Invalid combinations
+        are rejected rather than silently clamped.
         """
+        _require_finite("seconds", seconds)
+        _require_finite("fps", fps)
         if seconds < 0 or fps <= 0:
             raise ValueError("seconds must be >= 0 and fps > 0")
         k = max(1, math.floor(seconds * fps) + 1)
-        return cls(refresh_interval=k, min_interval=min(min_interval, k))
+        return cls(refresh_interval=k, min_interval=min_interval)
