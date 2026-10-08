@@ -1,0 +1,147 @@
+{
+  "method": "Controlled oracle-detector study: fresh detections use exact synthetic ground-truth boxes; differences therefore isolate temporal propagation and quality-triggered refresh.",
+  "gate": "stabilized",
+  "refresh_K": 15,
+  "iou_threshold": 0.5,
+  "detector_cost_model_ms": 698.0,
+  "seed": 20260922,
+  "configurations": [
+    {
+      "mode": "flow",
+      "M": 1,
+      "invocation_ratio": 0.543333,
+      "recall": 0.998374,
+      "mean_iou_positive": 0.998365,
+      "stale_fp_frames": 0,
+      "tracker_ms_per_frame": 3.039587,
+      "model_speedup": 1.803613
+    },
+    {
+      "mode": "retain",
+      "M": 1,
+      "invocation_ratio": 0.542222,
+      "recall": 0.998374,
+      "mean_iou_positive": 0.998374,
+      "stale_fp_frames": 5,
+      "tracker_ms_per_frame": 0.0,
+      "model_speedup": 1.821411
+    },
+    {
+      "mode": "flow",
+      "M": 2,
+      "invocation_ratio": 0.292222,
+      "recall": 0.996748,
+      "mean_iou_positive": 0.995152,
+      "stale_fp_frames": 1,
+      "tracker_ms_per_frame": 2.301644,
+      "model_speedup": 3.30909
+    },
+    {
+      "mode": "retain",
+      "M": 2,
+      "invocation_ratio": 0.291111,
+      "recall": 0.996748,
+      "mean_iou_positive": 0.948313,
+      "stale_fp_frames": 5,
+      "tracker_ms_per_frame": 0.0,
+      "model_speedup": 3.357866
+    },
+    {
+      "mode": "flow",
+      "M": 4,
+      "invocation_ratio": 0.168889,
+      "recall": 0.993496,
+      "mean_iou_positive": 0.992179,
+      "stale_fp_frames": 3,
+      "tracker_ms_per_frame": 1.929523,
+      "model_speedup": 5.606138
+    },
+    {
+      "mode": "retain",
+      "M": 4,
+      "invocation_ratio": 0.167778,
+      "recall": 0.972358,
+      "mean_iou_positive": 0.867629,
+      "stale_fp_frames": 5,
+      "tracker_ms_per_frame": 0.0,
+      "model_speedup": 5.731516
+    },
+    {
+      "mode": "flow",
+      "M": 6,
+      "invocation_ratio": 0.123333,
+      "recall": 0.990244,
+      "mean_iou_positive": 0.989776,
+      "stale_fp_frames": 5,
+      "tracker_ms_per_frame": 1.797263,
+      "model_speedup": 7.536381
+    },
+    {
+      "mode": "retain",
+      "M": 6,
+      "invocation_ratio": 0.123333,
+      "recall": 0.902439,
+      "mean_iou_positive": 0.797965,
+      "stale_fp_frames": 5,
+      "tracker_ms_per_frame": 0.0,
+      "model_speedup": 7.688891
+    },
+    {
+      "mode": "flow",
+      "M": 8,
+      "invocation_ratio": 0.105556,
+      "recall": 0.986992,
+      "mean_iou_positive": 0.986891,
+      "stale_fp_frames": 5,
+      "tracker_ms_per_frame": 1.738248,
+      "model_speedup": 8.709492
+    },
+    {
+      "mode": "retain",
+      "M": 8,
+      "invocation_ratio": 0.105556,
+      "recall": 0.782114,
+      "mean_iou_positive": 0.748131,
+      "stale_fp_frames": 5,
+      "tracker_ms_per_frame": 0.0,
+      "model_speedup": 8.901913
+    }
+  ],
+  "paired_deltas": [
+    {
+      "M": 1,
+      "delta_invocation_ratio": 0.001111,
+      "delta_recall": 0.0,
+      "delta_mean_iou_positive": -9e-06,
+      "delta_speedup": -0.017798
+    },
+    {
+      "M": 2,
+      "delta_invocation_ratio": 0.001111,
+      "delta_recall": 0.0,
+      "delta_mean_iou_positive": 0.046838,
+      "delta_speedup": -0.048776
+    },
+    {
+      "M": 4,
+      "delta_invocation_ratio": 0.001111,
+      "delta_recall": 0.021138,
+      "delta_mean_iou_positive": 0.124551,
+      "delta_speedup": -0.125378
+    },
+    {
+      "M": 6,
+      "delta_invocation_ratio": 0.0,
+      "delta_recall": 0.087805,
+      "delta_mean_iou_positive": 0.191811,
+      "delta_speedup": -0.15251
+    },
+    {
+      "M": 8,
+      "delta_invocation_ratio": 0.0,
+      "delta_recall": 0.204878,
+      "delta_mean_iou_positive": 0.23876,
+      "delta_speedup": -0.192421
+    }
+  ]
+}
