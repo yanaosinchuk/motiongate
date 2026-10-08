@@ -1,10 +1,11 @@
 # Motion-gated person detection
 
-**Run an expensive person detector only when the scene changes, with provable bounds on staleness and cost.**
 
 ![The stabilised gate ignores camera jitter but still finds the walking person](figures/fig_pipeline.png)
 
 `motiongate` puts a cheap motion gate (about 1–10 ms per frame) in front of a person detector (YOLOv8m, about 698 ms per 640×640 frame on one CPU thread). The detector runs on the first frame, whenever motion is detected, and at least every *K* frames. In between, the previous boxes are reused and reported together with their age. The repository contains the Python package, a command-line tool, 28 unit tests, a controlled benchmark with exact ground truth, and the LaTeX source of the accompanying paper (`paper/`).
+
+[Read the full paper](paper/Person_Detection.pdf)
 
 Author: Yana Osinchuk (Hochschule Darmstadt).
 
@@ -74,7 +75,7 @@ cd paper && latexmk -pdf main.tex
 src/motiongate/   gates (FD, FD-S, MOG2), scheduler, detector wrapper, theory, CLI
 benchmark/        synthetic scenes, metrics, offline policy replay, experiment runner
 tests/            unit tests (gates, scheduler guarantees, online/offline equivalence, theory)
-paper/            LaTeX source; all layout lives in paper/format.tex
+paper/            university-formatted LaTeX source, generated tables, figures and compiled paper
 results/          raw CSV/JSON results;  figures/  generated figures
 legacy/           the original prototype, kept for reference
 ```
