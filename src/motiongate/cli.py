@@ -9,11 +9,12 @@ from pathlib import Path
 
 import cv2
 
-from .config import GateConfig, SchedulerConfig
+from .config import GateConfig, SchedulerConfig, TrackingConfig
 from .detector import UltralyticsPersonDetector
 from .gates import GATE_NAMES, make_gate
 from .render import draw_overlay
 from .scheduler import MotionGatedDetector
+from .tracker import TRACKER_NAMES, make_tracker
 
 
 def _non_negative_int(value: str) -> int:
@@ -40,6 +41,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum age of retained detections in seconds (default 1.0)",
     )
     p.add_argument("--min-interval", type=int, default=1, help="minimum frames between detector calls M")
+    p.add_argument(
+        "--tracker",
+        choices=TRACKER_NAMES,
+        default="none",
+        help="box propagation between detector calls (default: none, reproduces the paper)",
+    )
+    p.add_argument("--tracking-min-quality", type=float, default=0.5)
+    p.add_argument("--tracking-min-points", type=int, default=4)
+    p.add_argument("--tracking-fb-threshold", type=float, default=1.5)
     p.add_argument("--conf", type=float, default=0.25, help="detector confidence threshold")
     p.add_argument("--imgsz", type=int, default=640)
     p.add_argument("--device", default="cpu")
@@ -74,6 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         scheduler_config = _scheduler_config(args, fps)
         gate_config = GateConfig(args.threshold, args.min_area, args.dilation)
+        tracking_config = TrackingConfig(
+            min_quality=args.tracking_min_quality,
+            min_points=args.tracking_min_points,
+            fb_threshold=args.tracking_fb_threshold,
+        )
     except (TypeError, ValueError) as exc:
         capture.release()
         print(f"error: invalid configuration: {exc}", file=sys.stderr)
@@ -86,7 +101,8 @@ def main(argv: list[str] | None = None) -> int:
         capture.release()
         print(f"error: cannot initialise detector: {exc}", file=sys.stderr)
         return 2
-    system = MotionGatedDetector(detector, gate, scheduler_config)
+    tracker = make_tracker(args.tracker, tracking_config)
+    system = MotionGatedDetector(detector, gate, scheduler_config, tracker=tracker)
 
     _ensure_parent(args.output)
     _ensure_parent(args.log)
@@ -95,7 +111,19 @@ def main(argv: list[str] | None = None) -> int:
     log = csv.writer(log_file) if log_file else None
     if log:
         log.writerow(
-            ["frame", "fresh", "reason", "detection_age", "gate_active", "persons", "gate_ms", "detector_ms"]
+            [
+                "frame",
+                "fresh",
+                "reason",
+                "detection_age",
+                "tracked",
+                "tracking_quality",
+                "gate_active",
+                "persons",
+                "gate_ms",
+                "tracker_ms",
+                "detector_ms",
+            ]
         )
 
     try:
@@ -111,9 +139,12 @@ def main(argv: list[str] | None = None) -> int:
                         int(result.fresh),
                         result.reason,
                         result.detection_age,
+                        int(result.tracked),
+                        "" if result.tracking_quality is None else f"{result.tracking_quality:.3f}",
                         int(result.gate.active),
                         len(result.detections),
                         f"{result.gate_ms:.3f}",
+                        f"{result.tracker_ms:.3f}",
                         f"{result.detector_ms:.3f}",
                     ]
                 )
