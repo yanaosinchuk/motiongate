@@ -1,0 +1,73 @@
+name: Tracking real-video benchmark
+
+on:
+  push:
+    branches:
+      - benchmark/tracking-evaluation
+    paths:
+      - ".github/workflows/tracking-video-benchmark.yml"
+      - "benchmark/tracking_video_study.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vtest-tracking-study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: benchmark/tracking-evaluation
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install benchmark dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[benchmark]"
+
+      - name: Download video and detector weights
+        run: |
+          mkdir -p data weights
+          curl -L -o data/vtest.avi https://raw.githubusercontent.com/opencv/opencv/4.x/samples/data/vtest.avi
+          python - <<'PY'
+          from pathlib import Path
+          from ultralytics import YOLO
+
+          YOLO("yolov8m.pt")
+          source = Path("yolov8m.pt")
+          target = Path("weights/yolov8m.pt")
+          if source.exists():
+              source.replace(target)
+          elif not target.exists():
+              raise SystemExit("Ultralytics did not leave yolov8m.pt in an expected location")
+          PY
+
+      - name: Run held-out tracking benchmark
+        run: python -m benchmark.tracking_video_study
+
+      - name: Show summary
+        run: |
+          cat results/tracking_video_summary.json
+          echo
+          cat results/tracking_video_deltas.csv
+
+      - name: Commit generated benchmark results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/tracking_video.csv                   results/tracking_video_deltas.csv                   results/tracking_video_summary.json                   figures/fig_tracking_video.png                   figures/fig_tracking_video.pdf
+          if git diff --cached --quiet; then
+            echo "No benchmark changes to commit."
+          else
+            git commit -m "Add held-out optical-flow benchmark results"
+            git push
+          fi
