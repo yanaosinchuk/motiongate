@@ -1,21 +1,7 @@
 """Motion-gated inference scheduler.
 
-The scheduler implements the decision rule
-
-    p_t = p_{t-1} or g_t                      (motion pending since t_last)
-    z_t = 1[ t = 0  or  (p_t and t - t_last >= M)  or  t - t_last >= K ]
-
-where ``g_t`` is the motion-gate decision, ``t_last`` the index of the last
-detector call, ``K`` the refresh interval and ``M`` the minimum interval
-(``p`` is cleared whenever the detector runs).  With M = 1 this is the
-original rule ``z_t = 1[t = 0 or g_t or t - t_last >= K]``.  If ``z_t = 0``
-the most recent detections are *retained*.  Every result states whether its detections are
-fresh, why the detector ran, and how old retained detections are, so that a
-consumer can never mistake a retained box for a new observation.
-
-Guarantees: retained detections are at most ``K - 1`` frames old; a motion
-trigger is served within ``M - 1`` frames; the invocation ratio lies between
-1/K (no motion) and 1/M (motion in every frame), up to the initial frame.
+Suppressed motion remains pending until the minimum interval permits a detector
+call. Retained detections are at most K - 1 frames old.
 """
 
 from __future__ import annotations
@@ -27,9 +13,9 @@ from time import perf_counter
 import numpy as np
 
 from .config import SchedulerConfig
+from .datatypes import Detection, FrameResult
 from .detector import PersonDetector
 from .gates import MotionGate
-from .datatypes import Detection, FrameResult
 
 REASON_INITIAL = "initial"
 REASON_MOTION = "motion"
@@ -55,7 +41,7 @@ class SchedulerStats:
 
 
 class MotionGatedDetector:
-    """Run ``detector`` only on frames selected by ``gate`` or by the periodic refresh."""
+    """Run detector only on frames selected by the gate or periodic refresh."""
 
     def __init__(
         self,
@@ -73,21 +59,35 @@ class MotionGatedDetector:
         self._shape: tuple[int, ...] | None = None
         self._pending_motion = False
 
-    def reset(self) -> None:
-        """Start a new stream: the next frame is treated as the first frame."""
+    def _reset_temporal_state(self) -> None:
+        """Reset video-dependent state while preserving counters and frame index."""
         self.gate.reset()
         self._last_inference = -1
         self._last_detections = ()
         self._shape = None
         self._pending_motion = False
 
+    def reset(self) -> None:
+        """Start a completely new stream and clear accumulated statistics."""
+        self._index = -1
+        self._reset_temporal_state()
+        self.reset_stats()
+
+    def reset_stats(self) -> None:
+        """Clear performance counters without changing the current stream state."""
+        self.stats = SchedulerStats()
+
     def process(self, frame: np.ndarray) -> FrameResult:
-        if not isinstance(frame, np.ndarray) or frame.ndim != 3:
+        if not isinstance(frame, np.ndarray) or frame.ndim != 3 or frame.shape[2] != 3:
             raise ValueError("frame must be an HxWx3 numpy array (BGR)")
+        if frame.dtype != np.uint8:
+            raise TypeError(f"frame must have dtype uint8, got {frame.dtype}")
+
         self._index += 1
         if self._shape is not None and frame.shape != self._shape:
-            # A resolution change invalidates both the gate reference and the boxes.
-            self.reset()
+            # A resolution change invalidates temporal state and retained boxes,
+            # but remains part of the same input stream for statistics.
+            self._reset_temporal_state()
         first = self._shape is None
         self._shape = frame.shape
 
@@ -112,8 +112,6 @@ class MotionGatedDetector:
             start = perf_counter()
             detections = tuple(self.detector(frame))
             detector_ms = 1000.0 * (perf_counter() - start)
-            # Replace the retained set even when it is empty: this clears stale
-            # boxes after a person has left the scene.
             self._last_detections = detections
             self._last_inference = self._index
             self._pending_motion = False
