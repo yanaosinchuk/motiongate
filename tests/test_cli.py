@@ -28,3 +28,8 @@ def test_scheduler_config_from_seconds_rejects_incompatible_interval():
 def test_refresh_and_max_staleness_are_mutually_exclusive():
     with pytest.raises(SystemExit):
         parse("--refresh", "15", "--max-staleness", "0.5")
+
+
+def test_max_frames_must_be_non_negative():
+    with pytest.raises(SystemExit):
+        parse("--max-frames", "-1")
