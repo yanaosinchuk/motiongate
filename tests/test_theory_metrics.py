@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import pytest
 
-from benchmark.evaluation import iou, match, wilson
+from benchmark.evaluation import iou, match, schedule, wilson
 from motiongate import GateConfig, theory
 from motiongate.gates import classic_difference_mask
 
@@ -52,3 +52,18 @@ def test_cost_model_and_bounds():
     assert theory.break_even_ratio(1.0, 100.0) == pytest.approx(0.99)
     assert theory.invocation_bounds(15, 3) == (1 / 15, 1 / 3)
     assert theory.area_model_critical_speed(113) == pytest.approx(900 / 119 - 6)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"n": -1},
+        {"n": 10, "fixed_rate": 0},
+        {"n": 10, "refresh": 0},
+        {"n": 10, "refresh": 5, "min_interval": 6},
+        {"n": 3, "gate": [False, True]},
+    ],
+)
+def test_schedule_rejects_invalid_policy_configuration(kwargs):
+    with pytest.raises(ValueError):
+        schedule(**kwargs)
