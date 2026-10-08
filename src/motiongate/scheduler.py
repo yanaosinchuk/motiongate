@@ -113,14 +113,12 @@ class MotionGatedDetector:
 
         tracking_result = None
         tracker_ms = 0.0
-        if not first and self.tracker is not None and self._last_detections:
-            start = perf_counter()
-            tracking_result = self.tracker.update(frame)
-            tracker_ms += 1000.0 * (perf_counter() - start)
-            self._pending_tracking = self._pending_tracking or not tracking_result.reliable
-
         gap = self._index - self._last_inference
         self._pending_motion = self._pending_motion or gate_result.active
+
+        # Decide all already-known detector triggers before spending time on
+        # optical flow. Tracking is useful only when this frame would otherwise
+        # be skipped; a fresh detector result will immediately replace it.
         if first:
             reason = REASON_INITIAL
         elif self._pending_tracking and gap >= self.config.min_interval:
@@ -130,7 +128,16 @@ class MotionGatedDetector:
         elif gap >= self.config.refresh_interval:
             reason = REASON_REFRESH
         else:
-            reason = REASON_SKIPPED
+            if self.tracker is not None and self._last_detections:
+                start = perf_counter()
+                tracking_result = self.tracker.update(frame)
+                tracker_ms += 1000.0 * (perf_counter() - start)
+                self._pending_tracking = self._pending_tracking or not tracking_result.reliable
+            reason = (
+                REASON_TRACKING
+                if self._pending_tracking and gap >= self.config.min_interval
+                else REASON_SKIPPED
+            )
 
         detector_ms = 0.0
         fresh = reason != REASON_SKIPPED
