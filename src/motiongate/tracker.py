@@ -189,3 +189,15 @@ class SparseOpticalFlowTracker:
         self._tracks = next_tracks
         quality = min(qualities) if qualities else 1.0
         return TrackingResult(tuple(detections), quality, all_reliable, tracked_points)
+
+
+TRACKER_NAMES = ("none", "flow")
+
+
+def make_tracker(name: str, config: TrackingConfig | None = None) -> BoxTracker | None:
+    """Create an optional tracker by command-line name."""
+    if name == "none":
+        return None
+    if name == "flow":
+        return SparseOpticalFlowTracker(config)
+    raise ValueError(f"unknown tracker {name!r}; choose one of {TRACKER_NAMES}")
