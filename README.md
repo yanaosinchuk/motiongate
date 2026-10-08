@@ -88,6 +88,7 @@ The core package deliberately keeps heavy detector dependencies optional. For co
 ```bash
 pip install -e ".[dev]"
 ruff check src tests benchmark
+ruff format src tests benchmark
 pytest -q
 ```
 
