@@ -14,6 +14,7 @@ dependencies = ["numpy>=1.24", "opencv-python-headless>=4.8"]
 
 [project.optional-dependencies]
 yolo = ["ultralytics>=8.3", "torch>=2.1"]
+analysis = ["pandas>=2.0", "matplotlib>=3.8"]
 benchmark = ["ultralytics>=8.3", "torch>=2.1", "pandas>=2.0", "matplotlib>=3.8"]
 dev = ["pytest>=8", "ruff>=0.8"]
 
