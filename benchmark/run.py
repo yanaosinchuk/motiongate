@@ -21,12 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import cv2
-import matplotlib
 import numpy as np
 import pandas as pd
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
 
 from motiongate import GateConfig, MotionGatedDetector, SchedulerConfig, UltralyticsPersonDetector, make_gate, theory  # noqa: E402
 
@@ -34,25 +30,28 @@ from . import synthetic as syn  # noqa: E402
 from .evaluation import (evaluate_against_reference, evaluate_against_truth, first_index, ratio,  # noqa: E402
                          schedule, wilson)
 
-ROOT = Path(__file__).resolve().parents[1]
-GATES = ("difference", "stabilized", "mog2")
-LABEL = {"difference": "FD (original)", "stabilized": "FD-S (stabilised)", "mog2": "MOG2"}
-SHORT = {"difference": "FD", "stabilized": "FDS", "mog2": "MOG"}
-COLOR = {"difference": "#D55E00", "stabilized": "#0072B2", "mog2": "#009E73", "fixed": "#7F7F7F", "every": "#000000"}
-REFRESH = 15                       # K for the controlled benchmark (0.5 s at 30 FPS)
-K_VALUES = (5, 10, 15, 30, 45, 90)
-M_VALUES = (1, 2, 3, 4, 6, 8)
-FIXED_N = (1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 45)
-VIDEO_REFRESH = 10                 # K for vtest.avi (1 s at 10 FPS)
-VIDEO_M = (1, 2, 3, 4, 6)
-VIDEO_FIXED_N = (1, 2, 3, 4, 5, 6, 8, 10)
-IOU_THRESHOLD, CONFIDENCE, IMAGE_SIZE = 0.5, 0.25, 640
-SWEEP_SIGMA = (0, 2, 4, 6, 8, 10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 36, 40, 48)
-SWEEP_DELTA = (0, 5, 10, 15, 18, 19, 20, 21, 22, 25, 30, 40, 60, 80)
-SWEEP_JITTER = (0, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8)
-SWEEP_SPEED = (1, 2, 3, 4, 5, 6, 8, 10)
-SWEEP_SCALES = (0.15, 0.25, 0.7)
-E2E_SCENARIOS = ("stop_and_go", "enter_stop_exit", "empty", "jitter")   # end-to-end timing subset
+from .plotting import fig_envelope, fig_pipeline, fig_scenarios, fig_tradeoff, style
+from .policies import evaluate_policies, interpolate_fixed
+from .settings import (
+    CONFIDENCE,
+    E2E_SCENARIOS,
+    GATES,
+    IMAGE_SIZE,
+    IOU_THRESHOLD,
+    LABEL,
+    REFRESH,
+    ROOT,
+    SHORT,
+    SWEEP_DELTA,
+    SWEEP_JITTER,
+    SWEEP_SCALES,
+    SWEEP_SIGMA,
+    SWEEP_SPEED,
+    VIDEO_FIXED_N,
+    VIDEO_M,
+    VIDEO_REFRESH,
+)
+
 BUDGET = {"seconds": None, "start": time.perf_counter()}
 
 
@@ -161,81 +160,6 @@ def summarise_gates(gate_df, scenarios):
             row[f"fpr_{sc.name}"] = ratio(sfp, sfp + stn)
         rows.append(row)
     return pd.DataFrame(rows)
-
-
-# ---------------------------------------------------------------------------
-# 2. Offline replay of scheduling policies
-# ---------------------------------------------------------------------------
-
-def policy_list():
-    pols = [("every", None, None, 1, None)]
-    pols += [("fixed", None, None, 1, n) for n in FIXED_N]
-    for g in GATES:
-        pols += [("gated", g, k, 1, None) for k in K_VALUES]
-        pols += [("gated", g, REFRESH, m, None) for m in M_VALUES if m != 1]
-    return pols
-
-
-def replay(entry, family, gate, k, m, n_fixed):
-    n = len(entry["truth"])
-    if family == "every":
-        return schedule(n)
-    if family == "fixed":
-        return schedule(n, fixed_rate=n_fixed)
-    return schedule(n, gate=entry["active"][gate], refresh=k, min_interval=m)
-
-
-def evaluate_policies(seed0, scenarios):
-    rows, per_scenario = [], []
-    ese = "enter_stop_exit"
-    ref_eval = evaluate_against_truth(seed0[ese]["truth"], seed0[ese]["dets"], np.arange(len(seed0[ese]["truth"])))
-    ref_entry = first_index(ref_eval["hits"], 10)
-    ref_exit = first_index(ref_eval["empties"], 60)
-    for family, gate, k, m, n_fixed in policy_list():
-        agg = {"tp": 0, "fn": 0, "fp": 0, "tn": 0, "box_fp": 0, "inv": 0, "frames": 0, "ms": 0.0}
-        ious, ages = [], []
-        entry_lat = exit_lat = math.nan
-        for sc in scenarios:
-            e = seed0[sc.name]
-            invoked, source = replay(e, family, gate, k, m, n_fixed)
-            ev = evaluate_against_truth(e["truth"], e["dets"], source, IOU_THRESHOLD)
-            for c in ("tp", "fn", "fp", "tn", "box_fp"):
-                agg[c] += ev[c]
-            ious += ev["ious"]
-            ages += ev["ages"]
-            ms = float(np.sum(np.array(e["det_ms"])[invoked]))
-            if family == "gated":
-                ms += float(np.sum(e["gate_ms"][gate]))
-            agg["ms"] += ms
-            agg["inv"] += int(invoked.sum())
-            agg["frames"] += len(invoked)
-            if sc.name == ese:
-                pe = first_index(ev["hits"], 10)
-                entry_lat = (pe - ref_entry) if (pe is not None and ref_entry is not None) else math.nan
-                px = first_index(ev["empties"], ref_exit) if ref_exit is not None else None
-                exit_lat = (px - ref_exit) if px is not None else (len(source) - ref_exit if ref_exit else math.nan)
-            if (family == "every") or (family == "gated" and k == REFRESH and m == 1):
-                per_scenario.append({"policy": gate or family, "scenario": sc.name,
-                                     "ratio": invoked.mean(), "recall": ratio(ev["tp"], ev["tp"] + ev["fn"]),
-                                     "stale_fp": ev["fp"]})
-        lo, hi = wilson(agg["tp"], agg["tp"] + agg["fn"])
-        rows.append({"family": family, "gate": gate or "", "K": k, "M": m, "N": n_fixed,
-                     "invocations": agg["inv"], "frames": agg["frames"], "ratio": agg["inv"] / agg["frames"],
-                     "tp": agg["tp"], "fn": agg["fn"], "recall": ratio(agg["tp"], agg["tp"] + agg["fn"]),
-                     "recall_lo": lo, "recall_hi": hi, "fp_frames": agg["fp"], "neg_frames": agg["fp"] + agg["tn"],
-                     "box_precision": ratio(agg["tp"], agg["tp"] + agg["box_fp"]),
-                     "mean_iou": float(np.mean(ious)) if ious else math.nan,
-                     "mean_age": float(np.mean(ages)), "max_age": int(np.max(ages)),
-                     "entry_latency": entry_lat, "exit_latency": exit_lat, "est_s": agg["ms"] / 1000.0})
-    df = pd.DataFrame(rows)
-    base = float(df.loc[df.family == "every", "est_s"].iloc[0])
-    df["speedup"] = base / df["est_s"]
-    return df, pd.DataFrame(per_scenario)
-
-
-def interpolate_fixed(policies, target_ratio, column="recall"):
-    fixed = policies[policies.family == "fixed"].sort_values("ratio")
-    return float(np.interp(target_ratio, fixed["ratio"], fixed[column]))
 
 
 # ---------------------------------------------------------------------------
@@ -388,133 +312,6 @@ def video_study(args, detector):
                **{f"active_{g}": float(np.mean(active[g][1:])) for g in GATES},
                **{f"gate_ms_{g}": float(np.mean(gms[g][1:])) for g in GATES}}
     return pd.DataFrame(rows), summary
-
-
-# ---------------------------------------------------------------------------
-# 6. Figures
-# ---------------------------------------------------------------------------
-
-def style():
-    plt.rcParams.update({"font.family": "serif", "font.size": 9, "axes.titlesize": 9, "axes.labelsize": 9,
-                         "legend.fontsize": 7.5, "xtick.labelsize": 8, "ytick.labelsize": 8,
-                         "axes.grid": True, "grid.alpha": 0.3, "axes.spines.top": False,
-                         "axes.spines.right": False, "savefig.bbox": "tight", "savefig.pad_inches": 0.02})
-
-
-def save(fig, name):
-    for ext in ("pdf", "png"):
-        fig.savefig(ROOT / "figures" / f"{name}.{ext}", dpi=200)
-    plt.close(fig)
-
-
-def fig_envelope(agg, scene, cfg):
-    fig, axes = plt.subplots(2, 2, figsize=(6.6, 4.9))
-    panels = [("noise", r"noise $\sigma$ (grey levels)", "(a) Sensor noise, empty scene"),
-              ("illumination", r"intensity step $\Delta$ (grey levels)", "(b) Illumination steps, empty scene"),
-              ("jitter", "inter-frame translation (px)", "(c) Camera jitter, empty scene")]
-    for ax, (kind, xlabel, title) in zip(axes.ravel()[:3], panels):
-        for g in ("difference", "stabilized"):
-            s = agg[(agg.kind == kind) & (agg.gate == g)].sort_values("value")
-            ax.plot(s.value, s.rate, marker="o", ms=3, color=COLOR[g], label=LABEL[g])
-            ax.fill_between(s.value, s.lo, s.hi, color=COLOR[g], alpha=0.15, lw=0)
-        ax.set(xlabel=xlabel, ylabel="gate activation rate", title=title, ylim=(-0.03, 1.03))
-    ax = axes[0, 0]
-    pc = theory.percolation_probability(cfg.dilation_iterations)
-    for g, pipe in (("difference", "classic"), ("stabilized", "robust")):
-        lo, hi = (theory.critical_sigma(cfg.threshold, p, pipe) for p in (1e-2, 1e-1))
-        ax.axvspan(lo, hi, color=COLOR[g], alpha=0.12, lw=0)
-        ax.axvline(theory.critical_sigma(cfg.threshold, pc, pipe), color=COLOR[g], ls=":", lw=1)
-    ax.text(0.98, 0.35, "bands: predicted onset\n(dotted: percolation $p_c$)", transform=ax.transAxes,
-            ha="right", fontsize=6.5)
-    axes[0, 1].axvline(theory.critical_illumination_step(cfg.threshold), color=COLOR["difference"], ls="--", lw=1)
-    axes[0, 1].text(cfg.threshold + 2, 0.5, r"$\Delta=\tau$", color=COLOR["difference"], fontsize=8)
-    axes[0, 0].legend(loc="upper left", frameon=False)
-    ax = axes[1, 1]
-    for scale, colour in zip(SWEEP_SCALES, ("#CC79A7", "#E69F00", "#56B4E9")):
-        h = int(454 * scale)
-        for g, ls in (("difference", "-"), ("stabilized", "--")):
-            s = agg[(agg.kind == "speed") & (agg.gate == g) & np.isclose(agg.scale.astype(float), scale)].sort_values("value")
-            ax.plot(s.value, s.rate, ls=ls, marker="o", ms=3, color=colour,
-                    label=f"h={h} px, {SHORT[g].replace('FDS', 'FD-S')}")
-        vstar = theory.area_model_critical_speed(h, cfg.min_area, cfg.dilation_iterations)
-        if vstar > 0:
-            ax.axvline(vstar, color=colour, lw=0.8, ls=":")
-    ax.set(xlabel="person displacement (px/frame)", ylabel="gate recall", title="(d) Walking person, by height",
-           ylim=(-0.03, 1.03))
-    ax.legend(loc="lower right", frameon=False, ncol=1, fontsize=6.5)
-    fig.tight_layout()
-    save(fig, "fig_envelope")
-
-
-def fig_tradeoff(policies, video):
-    fig, axes = plt.subplots(1, 3, figsize=(6.9, 2.5))
-    fx = policies[policies.family == "fixed"].sort_values("ratio")
-    ev = policies[policies.family == "every"].iloc[0]
-    panels = ((axes[0], "recall", "frame recall (IoU $\\geq$ 0.5)", "(a) Controlled: recall"),
-              (axes[1], "mean_iou", "mean IoU of hits", "(b) Controlled: localisation"))
-    for ax, col, ylabel, title in panels:
-        ax.plot(fx.ratio, fx[col], marker="s", ms=3, color=COLOR["fixed"], label="fixed rate, $N$ varied")
-        for g in GATES:
-            sub = policies[(policies.family == "gated") & (policies.gate == g) & (policies.K == REFRESH)].sort_values("ratio")
-            ax.plot(sub.ratio, sub[col], marker="o", ms=3.2, color=COLOR[g], label=f"{LABEL[g]}, $M$ varied")
-        ax.plot([1.0], [ev[col]], marker="*", ms=8, ls="none", color=COLOR["every"], label="every frame")
-        ax.set(xlabel="invocation ratio $r$", ylabel=ylabel, title=title, xlim=(0, 1.04))
-    axes[0].legend(loc="lower right", frameon=False, fontsize=5.8)
-    ax = axes[2]
-    if video is not None:
-        v = video[0]
-        vf = v[v.family == "fixed"].sort_values("ratio")
-        ax.plot(vf.ratio, vf.recall, marker="s", ms=3, color=COLOR["fixed"])
-        for g in GATES:
-            sub = v[(v.family == "gated") & (v.gate == g)].sort_values("ratio")
-            ax.plot(sub.ratio, sub.recall, marker="o", ms=3.2, color=COLOR[g])
-        ax.set(xlabel="invocation ratio $r$", ylabel="recall vs. every-frame YOLOv8m",
-               title="(c) Real video", xlim=(0, 1.04))
-    fig.tight_layout()
-    save(fig, "fig_tradeoff")
-
-def fig_scenarios(per_scenario, scenarios):
-    fig, ax = plt.subplots(figsize=(6.6, 2.5))
-    x = np.arange(len(scenarios))
-    width = 0.27
-    for i, g in enumerate(GATES):
-        s = per_scenario[per_scenario.policy == g].set_index("scenario").loc[[sc.name for sc in scenarios]]
-        ax.bar(x + (i - 1) * width, s.ratio, width, color=COLOR[g], label=LABEL[g])
-    ax.axhline(1.0, color="k", lw=0.8, ls="--")
-    ax.axhline(1.0 / REFRESH, color="k", lw=0.8, ls=":")
-    ax.text(len(scenarios) - 0.45, 1.0 / REFRESH + 0.02, "1/K", fontsize=7, ha="right")
-    ax.set_xticks(x, [sc.label for sc in scenarios], rotation=25, ha="right")
-    ax.set(ylabel="invocation ratio r", ylim=(0, 1.08))
-    ax.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.2), frameon=False)
-    fig.tight_layout()
-    save(fig, "fig_scenarios")
-
-
-def fig_pipeline(args, scene, scenarios, seed0):
-    idx = next(i for i, sc in enumerate(scenarios) if sc.name == "jitter_walk")
-    frames = [r.frame for r in syn.render_scenario(scene, scenarios[idx], syn.scenario_rng(args.seed, idx))]
-    t = 40
-    cfg = GateConfig(keep_mask=True)
-    fd, fds = make_gate("difference", cfg), make_gate("stabilized", cfg)
-    fd.update(frames[t - 1]); fds.update(frames[t - 1])
-    r_fd, r_fds = fd.update(frames[t]), fds.update(frames[t])
-    out = frames[t].copy()
-    for x1, y1, x2, y2 in r_fds.boxes:
-        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 170, 0), 2)
-    for b in seed0["jitter_walk"]["dets"][t]:
-        cv2.rectangle(out, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (0, 0, 220), 3)
-    panels = [(cv2.cvtColor(frames[t], cv2.COLOR_BGR2RGB), "(a) frame $t$ (camera jitter)"),
-              (r_fd.mask, f"(b) FD mask: {'active' if r_fd.active else 'inactive'}"),
-              (r_fds.mask, f"(c) FD-S mask: {'active' if r_fds.active else 'inactive'}"),
-              (cv2.cvtColor(out, cv2.COLOR_BGR2RGB), "(d) FD-S region (green), YOLO (red)")]
-    fig, axes = plt.subplots(1, 4, figsize=(6.6, 1.95))
-    for ax, (img, title) in zip(axes, panels):
-        ax.imshow(img, cmap="gray" if img.ndim == 2 else None, vmin=0, vmax=255)
-        ax.set_title(title, fontsize=7)
-        ax.axis("off")
-    fig.tight_layout(pad=0.3)
-    save(fig, "fig_pipeline")
-    return r_fds.shift
 
 
 # ---------------------------------------------------------------------------
