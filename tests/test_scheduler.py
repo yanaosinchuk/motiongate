@@ -219,5 +219,5 @@ def test_tracker_is_not_run_when_motion_already_requires_detection():
 
     assert second.reason == "motion"
     assert second.fresh
-    assert second.tracker_ms == 0.0
+    assert second.tracking_quality is None
     assert tracker.t == -1
