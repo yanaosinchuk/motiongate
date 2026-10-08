@@ -1,3 +1,13 @@
+"""Controlled synthetic benchmark built from one real photograph.
+
+People are removed from the source image by instance segmentation and inpainting,
+then one segmented pedestrian is composited back at known positions. This makes
+presence, motion and target boxes exact while nuisance factors such as sensor
+noise, illumination changes and camera jitter can be varied independently.
+The benchmark is a controlled systems test, not a substitute for annotated
+real-world surveillance footage.
+"""
+
 from __future__ import annotations
 
 import math
