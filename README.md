@@ -1,9 +1,10 @@
 # Motion-gated person detection
 
+[![Tests](https://github.com/yanaosinchuk/motiongate/actions/workflows/tests.yml/badge.svg)](https://github.com/yanaosinchuk/motiongate/actions/workflows/tests.yml)
 
 ![The stabilised gate ignores camera jitter but still finds the walking person](figures/fig_pipeline.png)
 
-`motiongate` puts a cheap motion gate (about 1–10 ms per frame) in front of a person detector (YOLOv8m, about 698 ms per 640×640 frame on one CPU thread). The detector runs on the first frame, whenever motion is detected, and at least every *K* frames. In between, the previous boxes are reused and reported together with their age. The repository contains the Python package, a command-line tool, 28 unit tests, a controlled benchmark with exact ground truth, and the LaTeX source of the accompanying paper (`paper/`).
+`motiongate` puts a cheap motion gate (about 1–10 ms per frame) in front of a person detector (YOLOv8m, about 698 ms per 640×640 frame on one CPU thread). The detector runs on the first frame, whenever motion is detected, and at least every *K* frames. In between, the previous boxes are reused and reported together with their age. The repository contains a typed Python package, a command-line tool, an automated unit-test suite, a controlled benchmark with exact ground truth, and the LaTeX source of the accompanying paper (`paper/`).
 
 [Read the full paper](paper/Person_Detection.pdf)
 
@@ -64,7 +65,7 @@ mkdir -p weights data
 python -c "from ultralytics import YOLO; YOLO('yolov8m.pt'); YOLO('yolov8n-seg.pt')" && mv yolov8m.pt yolov8n-seg.pt weights/
 curl -L -o data/vtest.avi https://raw.githubusercontent.com/opencv/opencv/4.x/samples/data/vtest.avi
 pip install -e ".[benchmark,dev]"            # exact versions: requirements.txt
-pytest                                       # 28 tests
+pytest                                       # unit tests
 python -m benchmark.run                      # ~35 min on one CPU thread; --budget 600 runs it in resumable chunks
 cd paper && latexmk -pdf main.tex
 ```
@@ -73,12 +74,24 @@ cd paper && latexmk -pdf main.tex
 
 ```
 src/motiongate/   gates (FD, FD-S, MOG2), scheduler, detector wrapper, theory, CLI
-benchmark/        synthetic scenes, metrics, offline policy replay, experiment runner
-tests/            unit tests (gates, scheduler guarantees, online/offline equivalence, theory)
+benchmark/        synthetic scenes, metrics, policies, experiment stages, plotting/reporting, thin runner
+tests/            unit tests (configuration, gates, scheduler, CLI, online/offline equivalence, theory)
 paper/            university-formatted LaTeX source, generated tables, figures and compiled paper
 results/          raw CSV/JSON results;  figures/  generated figures
 legacy/           the original prototype, kept for reference
 ```
+
+## Development
+
+The core package deliberately keeps heavy detector dependencies optional. For code-quality checks and unit tests:
+
+```bash
+pip install -e ".[dev]"
+ruff check src tests benchmark
+pytest -q
+```
+
+GitHub Actions runs the same lint-and-test checks on every push and pull request. Invalid configuration is rejected explicitly rather than silently clamped, and the benchmark is split into independent policy, experiment, plotting and reporting modules so the research pipeline can be tested and extended without turning the runner into a monolithic script.
 
 ## Limitations
 
