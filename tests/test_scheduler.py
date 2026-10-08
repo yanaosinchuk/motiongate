@@ -201,3 +201,23 @@ def test_tracker_failure_requests_refresh_without_breaking_rate_limit():
         b - a >= 3
         for a, b in zip(detector.calls, detector.calls[1:])
     )
+
+
+def test_tracker_is_not_run_when_motion_already_requires_detection():
+    tracked_detection = Detection((2, 1, 12, 11), 0.9)
+    tracker = ScriptedTracker([TrackingResult((tracked_detection,), 0.9, True, 8)])
+    detector = CountingDetector()
+    system = MotionGatedDetector(
+        detector,
+        ScriptedGate([0, 1]),
+        SchedulerConfig(10, 1),
+        tracker=tracker,
+    )
+    stream = frames(2)
+    system.process(next(stream))
+    second = system.process(next(stream))
+
+    assert second.reason == "motion"
+    assert second.fresh
+    assert second.tracker_ms == 0.0
+    assert tracker.t == -1
