@@ -65,10 +65,17 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add results/tracking_video.csv                   results/tracking_video_deltas.csv                   results/tracking_video_summary.json                   figures/fig_tracking_video.png                   figures/fig_tracking_video.pdf
+          git stash push -u -m "tracking-video-output" || true
+          git pull --rebase origin benchmark/tracking-evaluation
+          git stash pop || true
+          git add results/tracking_video.csv
+          git add results/tracking_video_deltas.csv
+          git add results/tracking_video_summary.json
+          git add figures/fig_tracking_video.png
+          git add figures/fig_tracking_video.pdf
           if git diff --cached --quiet; then
             echo "No benchmark changes to commit."
           else
-            git commit -m "Add held-out optical-flow benchmark results"
-            git push
+            git commit -m "Refresh held-out optical-flow benchmark results"
+            git push origin HEAD:benchmark/tracking-evaluation
           fi
