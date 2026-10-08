@@ -63,7 +63,8 @@ def test_fds_still_sees_object_under_jitter(texture):
 
 def test_noise_below_prediction_is_ignored(texture):
     rng = np.random.default_rng(1)
-    noisy = lambda: np.clip(texture + rng.normal(0, 3, texture.shape), 0, 255).astype(np.uint8)
+    def noisy():
+        return np.clip(texture + rng.normal(0, 3, texture.shape), 0, 255).astype(np.uint8)
     for gate in (FrameDifferenceGate(), StabilizedDifferenceGate()):
         gate.update(noisy())
         assert not any(gate.update(noisy()).active for _ in range(5))
