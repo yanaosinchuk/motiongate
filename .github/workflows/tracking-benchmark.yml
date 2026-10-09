@@ -1,0 +1,57 @@
+name: Tracking benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - benchmark/tracking-comparison
+    paths:
+      - .github/workflows/tracking-benchmark.yml
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install benchmark dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[benchmark]"
+
+      - name: Download detector weights
+        run: |
+          mkdir -p weights
+          python - <<'PY'
+          from pathlib import Path
+          from ultralytics import YOLO
+
+          for name in ("yolov8m.pt", "yolov8n-seg.pt"):
+              YOLO(name)
+              Path(name).replace(Path("weights") / name)
+          PY
+
+      - name: Run retain-vs-flow benchmark
+        run: python -m benchmark.tracking_run --seeds 1 --device cpu
+
+      - name: Upload benchmark outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracking-benchmark
+          path: |
+            results/tracking_controlled.csv
+            results/tracking_scenarios.csv
+            results/tracking_metadata.json
+            figures/fig_tracking_comparison.png
+            figures/fig_tracking_comparison.pdf
+          if-no-files-found: warn
