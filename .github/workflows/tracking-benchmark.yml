@@ -2,16 +2,6 @@ name: Tracking benchmark
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - benchmark/tracking-comparison
-    paths:
-      - .github/workflows/tracking-benchmark.yml
-      - benchmark/tracking.py
-      - benchmark/tracking_run.py
-      - benchmark/plotting.py
-      - src/motiongate/tracker.py
-      - src/motiongate/scheduler.py
 
 permissions:
   contents: write
@@ -59,6 +49,7 @@ jobs:
           git add figures/fig_tracking_comparison.png figures/fig_tracking_comparison.pdf
           if ! git diff --cached --quiet; then
             git commit -m "Update tracking benchmark outputs"
+            git pull --rebase origin "$GITHUB_REF_NAME"
             git push
           fi
 
