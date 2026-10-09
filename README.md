@@ -68,6 +68,23 @@ Version 1.1 adds an opt-in sparse optical-flow tracker. Fresh detector boxes see
 
 Tracking is **disabled by default**, so the paper and all reported benchmark numbers continue to use the original retain-last-box policy. Tracked frames are explicitly marked in the API/CSV output together with tracking quality and tracker runtime.
 
+### Tracking benchmark
+
+The post-paper comparison is reproducible separately from the paper:
+
+```bash
+python -m benchmark.tracking_run
+```
+
+It compares the original retain-last-box policy with optical-flow propagation at the same stabilised gate and refresh interval, over `M = 1, 2, 4`. Detector outputs are cached once per frame and reused by both modes, so the comparison isolates the effect of box propagation. It writes:
+
+- `results/tracking_controlled.csv` -- aggregate recall, mean IoU, detector ratio, stale frames and estimated runtime;
+- `results/tracking_scenarios.csv` -- the same metrics per controlled scenario;
+- `figures/fig_tracking_comparison.{png,pdf}` -- recall, localisation and compute trade-offs;
+- `results/tracking_metadata.json` -- environment and experiment configuration.
+
+No improvement claim is made until this benchmark has been run with the real YOLO detector.
+
 ## Reproducing the paper
 
 ```bash
