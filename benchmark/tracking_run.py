@@ -69,7 +69,6 @@ def main(argv=None):
     summary, per_scenario = evaluate_tracking_modes(args, scene, scenarios, seed0)
     summary.to_csv(ROOT / "results" / "tracking_controlled.csv", index=False)
     per_scenario.to_csv(ROOT / "results" / "tracking_scenarios.csv", index=False)
-    fig_tracking_comparison(summary)
 
     meta = {
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -87,6 +86,7 @@ def main(argv=None):
         "M": [1, 2, 4],
     }
     (ROOT / "results" / "tracking_metadata.json").write_text(json.dumps(meta, indent=2))
+    fig_tracking_comparison(summary)
     log(f"tracking comparison finished in {meta['runtime_min']} min")
     print(summary.to_string(index=False))
 
