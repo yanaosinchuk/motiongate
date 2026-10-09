@@ -1,0 +1,22 @@
+{
+  "generated_utc": "2026-10-09T18:12:28Z",
+  "workflow_run_id": 37969877024,
+  "runner": "ubuntu-latest",
+  "python": "3.12.15",
+  "opencv": "5.0.0.93",
+  "numpy": "2.5.3",
+  "torch": "2.14.1",
+  "ultralytics": "8.4.174",
+  "weights": "yolov8m.pt",
+  "seg_weights": "yolov8n-seg.pt",
+  "fake_detector": false,
+  "frames_per_scenario": 90,
+  "scenarios": 10,
+  "seed": 20260922,
+  "comparison": ["retain", "flow"],
+  "gate": "stabilized",
+  "K": 15,
+  "M": [1, 2, 4],
+  "iou_threshold": 0.5,
+  "note": "Numerical CSV outputs completed successfully. The original workflow run failed only while plotting because DataFrame.mode shadowed the 'mode' column; the plotting code was fixed afterward without changing benchmark numbers."
+}
