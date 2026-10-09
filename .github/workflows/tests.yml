@@ -27,7 +27,9 @@ jobs:
         run: ruff check src tests benchmark
 
       - name: Import benchmark pipeline
-        run: python -m benchmark.run --help > /dev/null
+        run: |
+          python -m benchmark.run --help > /dev/null
+          python -m benchmark.tracking_run --help > /dev/null
 
       - name: Run tests
         run: pytest -q
