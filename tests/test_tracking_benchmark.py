@@ -1,5 +1,3 @@
-import pytest
-
 from benchmark.tracking import _evaluate_frame
 from motiongate import Detection
 
