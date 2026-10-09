@@ -147,7 +147,7 @@ def fig_tracking_comparison(summary):
         ("retain", "s", "retain last box"),
         ("flow", "o", "optical-flow tracking"),
     ):
-        sub = summary[summary.mode == mode].sort_values("ratio")
+        sub = summary[summary["mode"] == mode].sort_values("ratio")
         axes[0].plot(sub.ratio, sub.recall, marker=marker, ms=4, label=label)
         axes[1].plot(sub.ratio, sub.mean_iou, marker=marker, ms=4, label=label)
         axes[2].plot(sub.ratio, sub.speedup, marker=marker, ms=4, label=label)
