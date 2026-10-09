@@ -76,14 +76,29 @@ The post-paper comparison is reproducible separately from the paper:
 python -m benchmark.tracking_run
 ```
 
-It compares the original retain-last-box policy with optical-flow propagation at the same stabilised gate and refresh interval, over `M = 1, 2, 4`. Detector outputs are cached once per frame and reused by both modes, so the comparison isolates the effect of box propagation. It writes:
+It compares the original retain-last-box policy with optical-flow propagation at the same stabilised gate and refresh interval, over `M = 1, 2, 4`. Detector outputs are cached once per frame and reused by both modes, so the comparison isolates the effect of box propagation. The real YOLOv8m benchmark (10 controlled scenarios x 90 frames, `K=15`, IoU threshold 0.5) gives:
+
+| Policy | M | detector ratio r | frame recall | mean IoU | estimated speed-up |
+|---|---:|---:|---:|---:|---:|
+| retain last box | 1 | 0.542 | 0.997 | 0.981 | 1.82x |
+| optical flow | 1 | 0.542 | 0.997 | 0.981 | 1.80x |
+| retain last box | 2 | 0.291 | 0.995 | 0.939 | 3.35x |
+| optical flow | 2 | 0.291 | 0.995 | 0.979 | 3.30x |
+| retain last box | 4 | 0.168 | 0.971 | 0.879 | 5.70x |
+| optical flow | 4 | 0.168 | 0.992 | 0.980 | 5.62x |
+
+At `M=2`, optical flow keeps exactly the same detector-call ratio and recall while raising mean IoU from 0.939 to 0.979; the estimated speed-up changes only from 3.35x to 3.30x. At `M=4`, tracking raises recall by 2.11 percentage points and mean IoU by 0.101 at the same detector-call ratio; the speed-up changes from 5.70x to 5.62x. The strongest practical operating point is therefore the tracked `M=4` mode: compared with the paper-style retain `M=1` configuration, it uses 69% fewer detector calls while losing only 0.49 percentage points of recall and essentially preserving mean IoU (0.9805 vs. 0.9810).
+
+![Retain-last-box versus optical-flow tracking](figures/fig_tracking_comparison.png)
+
+The benchmark writes:
 
 - `results/tracking_controlled.csv` -- aggregate recall, mean IoU, detector ratio, stale frames and estimated runtime;
 - `results/tracking_scenarios.csv` -- the same metrics per controlled scenario;
 - `figures/fig_tracking_comparison.{png,pdf}` -- recall, localisation and compute trade-offs;
 - `results/tracking_metadata.json` -- environment and experiment configuration.
 
-No improvement claim is made until this benchmark has been run with the real YOLO detector.
+These are post-paper results; the seminar paper and its original generated numbers remain unchanged.
 
 ## Reproducing the paper
 
