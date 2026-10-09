@@ -138,3 +138,40 @@ def fig_pipeline(args, scene, scenarios, seed0):
     return r_fds.shift
 
 
+
+
+def fig_tracking_comparison(summary):
+    """Compare the paper baseline with optical-flow box propagation."""
+    fig, axes = plt.subplots(1, 3, figsize=(6.9, 2.45))
+    for mode, marker, label in (
+        ("retain", "s", "retain last box"),
+        ("flow", "o", "optical-flow tracking"),
+    ):
+        sub = summary[summary.mode == mode].sort_values("ratio")
+        axes[0].plot(sub.ratio, sub.recall, marker=marker, ms=4, label=label)
+        axes[1].plot(sub.ratio, sub.mean_iou, marker=marker, ms=4, label=label)
+        axes[2].plot(sub.ratio, sub.speedup, marker=marker, ms=4, label=label)
+
+    axes[0].set(
+        xlabel="detector invocation ratio $r$",
+        ylabel="frame recall",
+        title="(a) Detection recall",
+        xlim=(0, 1.04),
+        ylim=(0, 1.01),
+    )
+    axes[1].set(
+        xlabel="detector invocation ratio $r$",
+        ylabel="mean IoU of hits",
+        title="(b) Localisation",
+        xlim=(0, 1.04),
+        ylim=(0, 1.01),
+    )
+    axes[2].set(
+        xlabel="detector invocation ratio $r$",
+        ylabel="estimated speed-up",
+        title="(c) Compute",
+        xlim=(0, 1.04),
+    )
+    axes[0].legend(frameon=False, fontsize=7)
+    fig.tight_layout()
+    save(fig, "fig_tracking_comparison")
