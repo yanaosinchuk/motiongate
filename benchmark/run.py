@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import pickle
 import platform
 import time
@@ -222,7 +223,10 @@ def main(argv=None):
     import torch
     import ultralytics
     meta = {"generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "runtime_min": round((time.perf_counter() - t_start) / 60, 1),
+            "runtime_min_this_invocation": round((time.perf_counter() - t_start) / 60, 1),
+            "run_mode": "fresh" if args.fresh else "cache-enabled",
+            "git_sha": os.environ.get("GITHUB_SHA"),
+            "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
             "python": platform.python_version(), "platform": platform.platform(),
             "cpu_threads": torch.get_num_threads(), "opencv": cv2.__version__, "numpy": np.__version__,
             "torch": torch.__version__, "ultralytics": ultralytics.__version__,
@@ -235,7 +239,7 @@ def main(argv=None):
                            "image_size": IMAGE_SIZE}}
     (ROOT / "results" / "metadata.json").write_text(json.dumps(meta, indent=2))
     (ROOT / "results" / "macros.json").write_text(json.dumps(macros, indent=2))
-    log(f"finished in {meta['runtime_min']} min")
+    log(f"finished in {meta['runtime_min_this_invocation']} min ({meta['run_mode']})")
 
 
 if __name__ == "__main__":
