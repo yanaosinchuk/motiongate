@@ -4,7 +4,7 @@
 
 ![The stabilised gate ignores camera jitter but still finds the walking person](figures/fig_pipeline.png)
 
-`motiongate` puts a cheap motion gate (about 1–11 ms per frame in the reported CPU benchmark) in front of a person detector (YOLOv8m, about 698 ms per 640×640 frame on one CPU thread). The detector runs on the first frame, whenever motion is detected, and at least every *K* frames. In between, the previous boxes are reused and reported together with their age. The repository contains a typed Python package, a command-line tool, an automated unit-test suite, a controlled benchmark with exact ground truth, and the LaTeX source of the accompanying paper (`paper/`).
+`motiongate` puts a cheap motion gate (about 1–11 ms per frame in the reported CPU benchmark) in front of a person detector (YOLOv8m, about 698 ms per 640×640 frame on one CPU thread). The detector runs on the first frame, on motion-triggered frames once the minimum interval *M* permits, and at least every *K* frames. In between, the previous boxes are reused and reported together with their age. The repository contains a typed Python package, a command-line tool, an automated unit-test suite, a controlled benchmark with exact ground truth, and the LaTeX source of the accompanying paper (`paper/`).
 
 [Read the full paper](paper/Person_Detection.pdf) · [Source package](src/motiongate/) · [Benchmark](benchmark/) · [Tests](tests/) · [Citation](CITATION.cff)
 
