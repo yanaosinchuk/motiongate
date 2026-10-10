@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software or its benchmark in academic work, please cite this repository."
+title: "MotionGate: Motion-Gated Person Detection with Bounded Staleness"
+type: software
+authors:
+  - family-names: Osinchuk
+    given-names: Yana
+version: 1.1.0
+repository-code: "https://github.com/yanaosinchuk/motiongate"
+license: AGPL-3.0-or-later
+abstract: >-
+  A typed Python implementation of motion-gated person detection with bounded
+  detection staleness, rate-limited scheduling, stabilized frame differencing,
+  reproducible benchmarking, and an optional sparse optical-flow tracker.
+keywords:
+  - computer vision
+  - person detection
+  - motion detection
+  - object detection
+  - optical flow
+  - video analytics
+  - OpenCV
+  - YOLO
