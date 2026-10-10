@@ -42,7 +42,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            latexmk biber \
+            latexmk biber lmodern \
             texlive-latex-extra \
             texlive-fonts-recommended \
             texlive-science \
