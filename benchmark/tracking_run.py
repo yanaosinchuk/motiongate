@@ -89,7 +89,9 @@ def main(argv=None):
 
     meta = {
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "runtime_min": round((time.perf_counter() - started) / 60, 2),
+        "runtime_min_this_invocation": round((time.perf_counter() - started) / 60, 2),
+        "run_mode": "fresh" if args.fresh else "cache-enabled",
+        "git_sha": os.environ.get("GITHUB_SHA"),
         "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
         "runner": os.environ.get("RUNNER_NAME"),
         "python": platform.python_version(),
@@ -112,7 +114,7 @@ def main(argv=None):
     }
     (ROOT / "results" / "tracking_metadata.json").write_text(json.dumps(meta, indent=2))
     fig_tracking_comparison(summary)
-    log(f"tracking comparison finished in {meta['runtime_min']} min")
+    log(f"tracking comparison finished in {meta['runtime_min_this_invocation']} min ({meta['run_mode']})")
     print(summary.to_string(index=False))
 
 
