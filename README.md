@@ -132,6 +132,8 @@ legacy/           the original prototype, kept for reference
 
 ## Development
 
+The default package install uses `opencv-python`, so the advertised `--show` webcam/video preview works without installing a second OpenCV distribution. The pinned paper environment in `requirements.txt` intentionally uses `opencv-python-headless`; its editable install therefore uses `--no-deps` to keep that research environment unambiguous.
+
 The core package deliberately keeps heavy detector dependencies optional. For code-quality checks and unit tests:
 
 ```bash
