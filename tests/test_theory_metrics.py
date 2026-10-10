@@ -52,6 +52,8 @@ def test_cost_model_and_bounds():
     assert theory.speedup(1.0, 100.0, 0.5) == pytest.approx(100 / 51)
     assert theory.break_even_ratio(1.0, 100.0) == pytest.approx(0.99)
     assert theory.invocation_bounds(15, 3) == (1 / 15, 1 / 3)
+    assert theory.invocation_count_bounds(90, 15, 3) == (6, 30)
+    assert theory.invocation_count_bounds(17, 15, 4) == (2, 5)
     assert theory.area_model_critical_speed(113) == pytest.approx(900 / 119 - 6)
 
 
@@ -68,3 +70,27 @@ def test_cost_model_and_bounds():
 def test_schedule_rejects_invalid_policy_configuration(kwargs):
     with pytest.raises(ValueError):
         schedule(**kwargs)
+
+@pytest.mark.parametrize("total,k,m", [(1, 15, 4), (17, 15, 4), (90, 15, 1), (91, 15, 4)])
+def test_scheduler_call_count_respects_exact_finite_bounds(total, k, m):
+    rng = np.random.default_rng(total * 100 + k * 10 + m)
+    lower, upper = theory.invocation_count_bounds(total, k, m)
+    for _ in range(50):
+        gate = rng.random(total) < 0.4
+        invoked, _ = schedule(total, gate=gate, refresh=k, min_interval=m)
+        assert lower <= int(invoked.sum()) <= upper
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        (10, 0, 1),
+        (10, 5, 0),
+        (10, 5, 6),
+        (-1, 5, 1),
+    ],
+)
+def test_invocation_count_bounds_reject_invalid_inputs(args):
+    with pytest.raises(ValueError):
+        theory.invocation_count_bounds(*args)
+
