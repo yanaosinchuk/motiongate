@@ -89,7 +89,7 @@ It compares the original retain-last-box policy with optical-flow propagation at
 | retain last box | 4 | 0.168 | 0.971 | 0.879 | 5.70x |
 | optical flow | 4 | 0.168 | 0.992 | 0.980 | 5.62x |
 
-At `M=2`, optical flow keeps exactly the same detector-call ratio and recall while raising mean IoU from 0.939 to 0.979; the estimated speed-up changes only from 3.35x to 3.30x. At `M=4`, tracking raises recall by 2.11 percentage points and mean IoU by 0.101 at the same detector-call ratio; the speed-up changes from 5.70x to 5.62x. The strongest practical operating point is therefore the tracked `M=4` mode: compared with the paper-style retain `M=1` configuration, it uses 69% fewer detector calls while losing only 0.49 percentage points of recall and essentially preserving mean IoU (0.9805 vs. 0.9810).
+At `M=2`, optical flow keeps exactly the same detector-call ratio and recall while raising mean IoU from 0.939 to 0.979; the estimated speed-up changes only from 3.35x to 3.30x. At `M=4`, tracking raises recall by 2.11 percentage points and mean IoU by 0.101 at the same detector-call ratio; the speed-up changes from 5.70x to 5.62x. Within this controlled single-pedestrian benchmark, the strongest tested operating point is the tracked `M=4` mode: compared with the paper-style retain `M=1` configuration, it uses 69% fewer detector calls while losing only 0.49 percentage points of recall and essentially preserving mean IoU (0.9805 vs. 0.9810).
 
 ![Retain-last-box versus optical-flow tracking](figures/fig_tracking_comparison.svg)
 
@@ -100,7 +100,7 @@ The benchmark writes:
 - `figures/fig_tracking_comparison.{png,pdf,svg}` -- recall, localisation and compute trade-offs;
 - `results/tracking_metadata.json` -- environment and experiment configuration.
 
-These are post-paper results and are kept separate from the seminar paper's benchmark tables and generated numerical macros.
+These are post-paper results and are kept separate from the seminar paper's benchmark tables and generated numerical macros. [Detailed tracking benchmark protocol](docs/TRACKING_BENCHMARK.md).
 
 ## Reproducing the paper
 
@@ -150,6 +150,8 @@ GitHub Actions runs the same lint-and-test checks on every push and pull request
 - The real-video reference is the detector itself, so it measures agreement, not accuracy.
 - FD-S models global translation only (no rotation, zoom or parallax).
 - Timings come from a single CPU thread; see the paper for details.
+- The post-paper optical-flow result is a controlled single-pedestrian study, not a general multi-object-tracking benchmark.
+- Wilson intervals pool temporally related frame/transition outcomes, so they are descriptive rather than cluster-robust inferential intervals.
 
 ## License
 
