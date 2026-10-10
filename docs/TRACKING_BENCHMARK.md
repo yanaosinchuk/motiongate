@@ -98,12 +98,13 @@ real-world tracking benchmark.
 ## Reproduction
 
 ```bash
-pip install -e ".[benchmark]"
-python -m benchmark.tracking_run
+python -m pip install -r requirements.txt
+python -m pip install -e . --no-deps
+python -m benchmark.tracking_run --fresh
 ```
 
 The command writes the aggregate results to
 `results/tracking_controlled.csv`, per-scenario results to
 `results/tracking_scenarios.csv`, metadata to
 `results/tracking_metadata.json`, and the comparison figure to
-`figures/fig_tracking_comparison.{png,pdf}`.
+`figures/fig_tracking_comparison.{png,pdf,svg}`.
