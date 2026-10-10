@@ -1,5 +1,7 @@
 name: refresh-audited-artifacts
 
+# Final audited source rebuild.
+
 on:
   push:
 
