@@ -1,6 +1,6 @@
 """Run the complete evaluation and regenerate every table, figure and number of the paper.
 
-    python -m benchmark.run                  # full run (about 25 min on one CPU core)
+    python -m benchmark.run --fresh          # clean full run (about 35 min in the paper environment)
     python -m benchmark.run --quick --fake-detector   # 1-minute smoke test of the pipeline
 
 Outputs: ``results/*.csv|json`` (raw numbers), ``figures/*.pdf|png`` and
@@ -53,7 +53,7 @@ def controlled_study(args, scene, scenarios, detector):
     cache_dir.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha1(json.dumps([yolo_cache_key(args, sc) for sc in scenarios] + seeds).encode()).hexdigest()[:12]
     study_cache = cache_dir / f"gate_study_{key}.pkl"
-    if study_cache.exists():
+    if study_cache.exists() and not args.fresh:
         log("gate study loaded from cache")
         return pickle.loads(study_cache.read_bytes())
     for seed in seeds:
@@ -62,7 +62,7 @@ def controlled_study(args, scene, scenarios, detector):
             cache = cache_dir / f"yolo_{sc.name}.json"
             key = yolo_cache_key(args, sc)
             cached = None
-            if first and cache.exists():
+            if first and cache.exists() and not args.fresh:
                 data = json.loads(cache.read_text())
                 cached = data if data.get("key") == key else None
             run_yolo = first and cached is None
@@ -145,6 +145,10 @@ def main(argv=None):
     ap.add_argument("--skip-e2e", action="store_true")
     ap.add_argument("--budget", type=float, default=0,
                     help="stop before expensive stages after this many seconds; rerun to resume from the cache")
+    ap.add_argument("--fresh", action="store_true",
+                    help="ignore existing benchmark caches and recompute canonical results")
+    ap.add_argument("--cpu-threads", type=int, default=1,
+                    help="PyTorch CPU threads for detector timing (default: 1)")
     args = ap.parse_args(argv)
     configure_budget(args.budget)
     if args.quick:
@@ -153,6 +157,15 @@ def main(argv=None):
         (ROOT / d).mkdir(exist_ok=True)
     style()
     cfg = GateConfig()
+    if args.cpu_threads < 1:
+        ap.error("--cpu-threads must be at least 1")
+    if not args.fake_detector and args.device == "cpu":
+        import torch
+        torch.set_num_threads(args.cpu_threads)
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
     t_start = time.perf_counter()
 
     log("preparing the controlled scene")
@@ -187,7 +200,7 @@ def main(argv=None):
 
     log("operating-envelope sweeps")
     env_cache = ROOT / "results" / "cache" / "envelope.pkl"
-    if env_cache.exists():
+    if env_cache.exists() and not args.fresh:
         agg = pickle.loads(env_cache.read_bytes())
     else:
         agg = envelope(scene, n=10 if args.quick else 30, seeds=(0,) if args.quick else (0, 1, 2))
