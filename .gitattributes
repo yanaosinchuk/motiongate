@@ -1,0 +1,22 @@
+* text=auto
+
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.tex text eol=lf
+*.bib text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.csv text eol=lf
+*.svg text eol=lf
+
+# Keep GitHub language statistics focused on the implementation.
+paper/** linguist-documentation
+docs/** linguist-documentation
+
+# Binary assets.
+*.png binary
+*.pdf binary
+*.avi binary
+*.pt binary
