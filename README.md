@@ -4,16 +4,16 @@
 
 ![The stabilised gate ignores camera jitter but still finds the walking person](figures/fig_pipeline.png)
 
-`motiongate` puts a cheap motion gate (about 1–10 ms per frame) in front of a person detector (YOLOv8m, about 698 ms per 640×640 frame on one CPU thread). The detector runs on the first frame, whenever motion is detected, and at least every *K* frames. In between, the previous boxes are reused and reported together with their age. The repository contains a typed Python package, a command-line tool, an automated unit-test suite, a controlled benchmark with exact ground truth, and the LaTeX source of the accompanying paper (`paper/`).
+`motiongate` puts a cheap motion gate (about 1–11 ms per frame in the reported CPU benchmark) in front of a person detector (YOLOv8m, about 698 ms per 640×640 frame on one CPU thread). The detector runs on the first frame, whenever motion is detected, and at least every *K* frames. In between, the previous boxes are reused and reported together with their age. The repository contains a typed Python package, a command-line tool, an automated unit-test suite, a controlled benchmark with exact ground truth, and the LaTeX source of the accompanying paper (`paper/`).
 
-[Read the full paper](paper/Person_Detection.pdf)
+[Read the full paper](paper/Person_Detection.pdf) · [Source package](src/motiongate/) · [Benchmark](benchmark/) · [Tests](tests/)
 
 Author: Yana Osinchuk (Hochschule Darmstadt).
 
 ## Highlights
 
-- **Guarantees instead of hope.** Two parameters: the refresh interval *K* bounds the age of every reported box by *K*−1 frames, and the minimum interval *M* caps the cost. The fraction of frames sent to the detector always lies between 1/*K* and 1/*M*, whatever happens in the scene (proof in the paper).
-- **Failure modes that are predicted, not just observed.** The classic frame-differencing gate takes absolute differences *before* smoothing, so sensor noise adds a bias of 1.13σ that smoothing cannot remove. A percolation argument predicts the breakdown at σ ≈ 13.9; the benchmark measures 13.9. The same gate fires at every illumination step larger than its threshold and on sub-pixel camera jitter.
+- **Guarantees instead of hope.** Two parameters: the refresh interval *K* bounds the age of every reported box by *K*−1 frames, and the minimum interval *M* caps the cost. Over *T* frames the detector is called between `ceil(T/K)` and `ceil(T/M)` times; the long-run invocation ratio therefore approaches the familiar bounds 1/*K* and 1/*M* (proof in the paper).
+- **Failure modes that are predicted, not just observed.** The classic frame-differencing gate takes absolute differences *before* smoothing, so sensor noise adds a bias of 1.13σ that smoothing cannot remove. A heuristic percolation model predicts the breakdown at σ ≈ 13.9; the benchmark measures 13.9. The same gate fires at every illumination step larger than its threshold and on sub-pixel camera jitter.
 - **A stabilised gate (FD-S).** Signed differencing, phase-correlation registration with an edge-based model selection, illumination compensation and an error-propagated threshold. False triggers under camera jitter drop from 0.996 to 0.069 and under illumination steps from 0.022 to 0.000. Noise tolerance rises to σ ≈ 33.8. It costs 7.25 ms per frame.
 
 ## Results
@@ -27,11 +27,11 @@ Controlled benchmark (10 scenarios × 90 frames, YOLOv8m, *K* = 15, *M* = 1; rec
 | gated, stabilised (FD-S) | 0.542 | 0.997 | 0 | 1.83 |
 | gated, MOG2 | 0.557 | 0.997 | 5 | 1.76 |
 
-At the same budget, fixed-rate subsampling matches this recall (0.997), but its boxes lag behind moving people (mean IoU 0.942 vs 0.981). At smaller budgets the rate-limited gate is clearly better: with *M* = 4 it keeps a recall of 0.971 at *r* = 0.168, where fixed-rate subsampling reaches 0.883. The measured end-to-end run time of the online system differs from the cost-model estimate by -5.4 % (FD-S), with zero decision mismatches.
+At the matched detector budget, the linearly interpolated fixed-rate baseline matches this recall (0.997), but its boxes lag behind moving people (mean IoU of matched positive frames 0.942 vs 0.981). At smaller budgets the rate-limited gate is clearly better: with *M* = 4 it keeps a recall of 0.971 at *r* = 0.168, while the interpolated fixed-rate baseline reaches 0.883. The measured end-to-end run time of the online system differs from the cost-model estimate by -5.4 % (FD-S), with zero decision mismatches.
 
 Real video (OpenCV `vtest.avi`, 795 frames, 6.0 persons per frame on average, reference = YOLOv8m on every frame): the scene is almost always in motion, so the gate is active on 0.994 of the frames and gating with *M* = 1 saves little. With *M* = 2 the stabilised gate reaches a recall of 0.952 at a speed-up of 1.95, compared with 0.952 for every second frame. The lesson is that gating pays off in scenes that are often static; in busy scenes *M* (or a tracker) bounds the cost.
 
-All numbers are regenerated by `python -m benchmark.run` and read by the paper from `paper/generated/`.
+All paper numbers are generated by `python -m benchmark.run`; a canonical cache-independent rebuild uses `python -m benchmark.run --fresh`. The paper reads its numerical macros and tables from `paper/generated/`.
 
 ## Quick start
 
@@ -73,7 +73,7 @@ Tracking is **disabled by default**, so the paper and all reported benchmark num
 The post-paper comparison is reproducible separately from the paper:
 
 ```bash
-python -m benchmark.tracking_run
+python -m benchmark.tracking_run --fresh
 ```
 
 It compares the original retain-last-box policy with optical-flow propagation at the same stabilised gate and refresh interval, over `M = 1, 2, 4`. Detector outputs are cached once per frame and reused by both modes, so the comparison isolates the effect of box propagation. The real YOLOv8m benchmark (10 controlled scenarios x 90 frames, `K=15`, IoU threshold 0.5) gives:
@@ -95,22 +95,27 @@ The benchmark writes:
 
 - `results/tracking_controlled.csv` -- aggregate recall, mean IoU, detector ratio, stale frames and estimated runtime;
 - `results/tracking_scenarios.csv` -- the same metrics per controlled scenario;
-- `figures/fig_tracking_comparison.{png,pdf}` -- recall, localisation and compute trade-offs;
+- `figures/fig_tracking_comparison.{png,pdf,svg}` -- recall, localisation and compute trade-offs;
 - `results/tracking_metadata.json` -- environment and experiment configuration.
 
-These are post-paper results; the seminar paper and its original generated numbers remain unchanged.
+These are post-paper results and are kept separate from the seminar paper's benchmark tables and generated numerical macros.
 
 ## Reproducing the paper
 
 ```bash
+python -m pip install -r requirements.txt     # pinned paper environment
+python -m pip install -e . --no-deps          # install the local package without changing pins
+
 mkdir -p weights data
 python -c "from ultralytics import YOLO; YOLO('yolov8m.pt'); YOLO('yolov8n-seg.pt')" && mv yolov8m.pt yolov8n-seg.pt weights/
 curl -L -o data/vtest.avi https://raw.githubusercontent.com/opencv/opencv/4.x/samples/data/vtest.avi
-pip install -e ".[benchmark,dev]"            # exact versions: requirements.txt
-pytest                                       # unit tests
-python -m benchmark.run                      # ~35 min on one CPU thread; --budget 600 runs it in resumable chunks
+
+pytest -q
+python -m benchmark.run --fresh               # clean canonical rebuild; ~35 min in the paper environment
 cd paper && latexmk -pdf main.tex
 ```
+
+For interrupted exploratory runs, omit `--fresh` and use `--budget 600`; completed stages are cached under `results/cache/`.
 
 ## Repository layout
 
@@ -146,4 +151,4 @@ GitHub Actions runs the same lint-and-test checks on every push and pull request
 
 ## License
 
-AGPL-3.0 (see `LICENSE`), because the detector wrapper builds on Ultralytics YOLOv8, which is AGPL-3.0 licensed.
+AGPL-3.0-or-later (see `LICENSE` and `pyproject.toml`). This is a conservative compatibility choice for the optional Ultralytics YOLO backend and pretrained weights used by the benchmark.
