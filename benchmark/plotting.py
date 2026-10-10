@@ -174,4 +174,5 @@ def fig_tracking_comparison(summary):
     )
     axes[0].legend(frameon=False, fontsize=7)
     fig.tight_layout()
+    fig.savefig(ROOT / "figures" / "fig_tracking_comparison.svg")
     save(fig, "fig_tracking_comparison")
