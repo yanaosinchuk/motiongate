@@ -125,6 +125,34 @@ def break_even_ratio(gate_cost: float, detector_cost: float) -> float:
     return 1.0 - gate_cost / detector_cost
 
 
+def _validate_scheduler_intervals(refresh_interval: int, min_interval: int) -> None:
+    if not isinstance(refresh_interval, int) or isinstance(refresh_interval, bool) or refresh_interval < 1:
+        raise ValueError("refresh_interval must be a positive integer")
+    if not isinstance(min_interval, int) or isinstance(min_interval, bool) or min_interval < 1:
+        raise ValueError("min_interval must be a positive integer")
+    if min_interval > refresh_interval:
+        raise ValueError("min_interval must not exceed refresh_interval")
+
+
 def invocation_bounds(refresh_interval: int, min_interval: int = 1) -> tuple[float, float]:
-    """Asymptotic bounds 1/K <= r <= 1/M on the invocation ratio of the scheduler."""
+    """Long-run bounds 1/K <= r <= 1/M for the scheduler invocation ratio."""
+    _validate_scheduler_intervals(refresh_interval, min_interval)
     return 1.0 / refresh_interval, 1.0 / min_interval
+
+
+def invocation_count_bounds(
+    total_frames: int,
+    refresh_interval: int,
+    min_interval: int = 1,
+) -> tuple[int, int]:
+    """Exact finite-horizon bounds on the number of detector calls.
+
+    Over T frames, including the mandatory call at frame zero, every admissible
+    gate sequence yields ceil(T/K) <= calls <= ceil(T/M).
+    """
+    _validate_scheduler_intervals(refresh_interval, min_interval)
+    if not isinstance(total_frames, int) or isinstance(total_frames, bool) or total_frames < 0:
+        raise ValueError("total_frames must be a non-negative integer")
+    if total_frames == 0:
+        return 0, 0
+    return math.ceil(total_frames / refresh_interval), math.ceil(total_frames / min_interval)
