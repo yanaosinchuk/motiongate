@@ -73,6 +73,8 @@ Tracking is **disabled by default**, so the paper and all reported benchmark num
 The post-paper comparison is reproducible separately from the paper:
 
 ```bash
+python -m pip install -r requirements.txt
+python -m pip install -e . --no-deps
 python -m benchmark.tracking_run --fresh
 ```
 
