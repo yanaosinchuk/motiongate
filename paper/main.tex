@@ -357,7 +357,7 @@ Smoothing suppresses the fluctuations but not the mean, which the absolute value
 
 When does the gate fire? The dilations turn every exceeding pixel into a $(2d+1)\times(2d+1)$ square. Randomly placed aligned squares of side $L$ form large connected clusters once their density reaches $\eta_c/L^2$ with $\eta_c\approx1.0988$~\cite{mertens2012continuum}. For $d=3$ this is $p_c=\PercProb$: below $p_c$ clusters rarely reach $A_{\min}$, above it they grow without bound and the gate fires in every frame. The onset is therefore estimated where $p(\sigma^*)=p_c$, which gives $\sigma^*_{\FD}=\PredSigmaPcFD$ (\PredSigmaLoFD--\PredSigmaHiFD{} for $p\in[0.01,0.1]$). Smoothing correlates neighbouring exceedances, so this is an estimate that the experiments must confirm.
 
-\paragraph{Illumination.} A uniform intensity step $\Delta$ changes every unsaturated pixel by $|\Delta|$, so \FD{} fires if and only if $|\Delta|>\tau$, whatever the scene content.
+\paragraph{Illumination.} In the ideal unsaturated model, a uniform intensity step $\Delta$ changes every pixel by $|\Delta|$, so \FD{} fires once $|\Delta|>\tau$. In real 8-bit images, clipping, quantisation and sensor noise soften this threshold, which is why the measured crossing is reported separately.
 
 \paragraph{Object size and speed.} A textured silhouette of height $h$ that moves by $v$ pixels changes at least a leading and a trailing strip of about $v\times h$ pixels. After dilation a strip covers $(v+2d)(h+2d)$ pixels, so the gate fires if
 \begin{equation}\label{eq:area}
@@ -572,6 +572,7 @@ On \code{vtest.avi} every frame contains persons (\VtPersons{} on average), and 
 \item Timings come from one CPU thread of a shared machine; ratios such as $r$ and $C_m/C_y$ transfer better than absolute times.
 \item \FDS{} still triggers for inter-frame translations of about 0.5--1\,px (\cref{fig:envelope}c), where half-resolution phase correlation is not accurate enough; full-resolution or iterative refinement~\cite{lucas1981iterative,evangelidis2008ecc} would address this at a higher cost. Rotation, zoom and parallax are not modelled.
 \item The percolation estimate of the noise onset neglects the spatial correlation introduced by smoothing.
+\item Wilson intervals are computed from pooled frame/transition outcomes and therefore treat those outcomes as Bernoulli trials. Temporal and within-scenario dependence means the intervals should be read as descriptive uncertainty summaries rather than cluster-robust inferential confidence intervals.
 \end{itemize}
 
 \paragraph{Future work.} A tracker such as SORT~\cite{bewley2016sort} could extrapolate boxes between detector calls instead of retaining them. The noise level could be estimated online to adapt $\tau$ through~\eqref{eq:bias}. The policies should also be evaluated on annotated real footage and measured on embedded hardware.
