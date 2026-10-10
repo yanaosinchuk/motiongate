@@ -40,9 +40,22 @@ def main(argv=None):
     parser.add_argument("--quick", action="store_true")
     parser.add_argument("--fake-detector", action="store_true")
     parser.add_argument("--budget", type=float, default=0)
+    parser.add_argument("--fresh", action="store_true",
+                        help="ignore existing detector/gate caches and recompute the comparison")
+    parser.add_argument("--cpu-threads", type=int, default=1,
+                        help="PyTorch CPU threads for detector timing (default: 1)")
     args = parser.parse_args(argv)
 
     configure_budget(args.budget)
+    if args.cpu_threads < 1:
+        parser.error("--cpu-threads must be at least 1")
+    if not args.fake_detector and args.device == "cpu":
+        import torch
+        torch.set_num_threads(args.cpu_threads)
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
     if args.quick:
         args.frames, args.seeds = 90, 2
 
@@ -70,20 +83,32 @@ def main(argv=None):
     summary.to_csv(ROOT / "results" / "tracking_controlled.csv", index=False)
     per_scenario.to_csv(ROOT / "results" / "tracking_scenarios.csv", index=False)
 
+    import os
+    import torch
+    import ultralytics
+
     meta = {
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "runtime_min": round((time.perf_counter() - started) / 60, 2),
+        "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
+        "runner": os.environ.get("RUNNER_NAME"),
         "python": platform.python_version(),
         "platform": platform.platform(),
         "opencv": cv2.__version__,
         "numpy": np.__version__,
+        "torch": torch.__version__,
+        "ultralytics": ultralytics.__version__,
         "weights": Path(args.weights).name,
+        "seg_weights": Path(args.seg_weights).name,
         "fake_detector": args.fake_detector,
         "frames_per_scenario": args.frames,
+        "scenarios": len(scenarios),
         "seed": args.seed,
         "comparison": ["retain", "flow"],
+        "gate": "stabilized",
         "K": 15,
         "M": [1, 2, 4],
+        "iou_threshold": 0.5,
     }
     (ROOT / "results" / "tracking_metadata.json").write_text(json.dumps(meta, indent=2))
     fig_tracking_comparison(summary)
