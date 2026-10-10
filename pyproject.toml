@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Yana Osinchuk" }]
-dependencies = ["numpy>=1.24", "opencv-python-headless>=4.8"]
+dependencies = ["numpy>=1.24", "opencv-python>=4.8"]
 
 [project.optional-dependencies]
 yolo = ["ultralytics>=8.3", "torch>=2.1"]
