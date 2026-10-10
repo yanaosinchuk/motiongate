@@ -37,7 +37,7 @@ def end_to_end(args, scene, scenarios, detector, seed0):
     rows = []
     for g in ("difference", "stabilized"):
         cache = ROOT / "results" / "cache" / f"e2e_{g}.json"
-        if cache.exists():
+        if cache.exists() and not args.fresh:
             rows.append(json.loads(cache.read_text()))
             continue
         check_budget(f"end-to-end run ({g})")
@@ -127,7 +127,7 @@ def video_study(args, detector):
         log(f"video {path} not found - skipping the real-video study")
         return None
     fps = capture.get(cv2.CAP_PROP_FPS) or 10.0
-    cached = json.loads(cache.read_text()) if cache.exists() else {"boxes": [], "ms": []}
+    cached = json.loads(cache.read_text()) if cache.exists() and not args.fresh else {"boxes": [], "ms": []}
     gates = {g: make_gate(g) for g in GATES}
     active = {g: [] for g in GATES}
     gms = {g: [] for g in GATES}
